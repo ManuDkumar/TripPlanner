@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}My Trips - Tripplanner{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header Section -->
+    <div class="row mb-4 fade-in">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-2">
+                        <i class="fas fa-suitcase-rolling text-primary"></i>
+                        My Planned Trips
+                    </h2>
+                    <p class="text-muted">Manage and track all your adventures</p>
+                </div>
+                <a href="/create-trip" class="btn btn-primary btn-lg">
+                    <i class="fas fa-plus"></i> New Trip
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {% if trips %}
+    <!-- Statistics Summary -->
+    <div class="row mb-4 fade-in">
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-map-marked-alt fa-2x text-primary mb-2"></i>
+                    <h3 class="mb-0">{{ trips|length }}</h3>
+                    <small class="text-muted">Total Trips</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-calendar-alt fa-2x text-success mb-2"></i>
+                    <h3 class="mb-0">{{ total_days }}</h3>
+                    <small class="text-muted">Total Days</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-dollar-sign fa-2x text-warning mb-2"></i>
+                    <h3 class="mb-0">${{ total_budget|round|int }}</h3>
+                    <small class="text-muted">Total Budget</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-globe-americas fa-2x text-info mb-2"></i>
+                    <h3 class="mb-0">{{ trips|length }}</h3>
+                    <small class="text-muted">Destinations</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trips Grid -->
+    <div class="row">
+        {% for trip in trips %}
+        <div class="col-lg-4 col-md-6 mb-4 fade-in">
+            <div class="card h-100 trip-card">
+                <!-- Card Header with Destination -->
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-map-marker-alt"></i>
+                        {{ trip.destination }}
+                    </h5>
+                </div>
+                
+                <div class="card-body">
+                    <h6 class="card-title mb-3">{{ trip.title }}</h6>
+                    
+                    <!-- Trip Details -->
+                    <div class="trip-details">
+                        <div class="detail-item mb-2">
+                            <i class="fas fa-plane-departure text-muted"></i>
+                            <strong>From:</strong> {{ trip.origin }}
+                        </div>
+                        <div class="detail-item mb-2">
+                            <i class="fas fa-calendar text-muted"></i>
+                            <strong>Dates:</strong><br>
+                            <small>{{ trip.start_date }} → {{ trip.end_date }}</small>
+                        </div>
+                        <div class="detail-item mb-2">
+                            <i class="fas fa-clock text-muted"></i>
+                            <strong>Duration:</strong> {{ trip.calculate_duration() }} days
+                        </div>
+                        <div class="detail-item mb-2">
+                            <i class="fas fa-users text-muted"></i>
+                            <strong>Travelers:</strong> {{ trip.travelers_count }}
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Budget Info -->
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="budget-box">
+                                <h5 class="text-success mb-0">${{ trip.budget }}</h5>
+                                <small class="text-muted">Total Budget</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="budget-box">
+                                <h5 class="text-info mb-0">${{ trip.calculate_cost_per_day() }}</h5>
+                                <small class="text-muted">Per Day</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Footer with Actions -->
+                <div class="card-footer bg-light">
+                    <div class="d-flex gap-2">
+                        <a href="/trip/{{ trip.id }}" class="btn btn-sm btn-outline-primary flex-fill">
+                            <i class="fas fa-eye"></i> View
+                        </a>
+                        <a href="/edit-trip/{{ trip.id }}" class="btn btn-sm btn-outline-secondary flex-fill">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                        <form action="/delete-trip/{{ trip.id }}" method="post" style="display:inline;" class="flex-fill">
+                            <button type="submit" class="btn btn-sm btn-outline-danger w-100"
+                                onclick="return confirm('Delete this trip?');">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% else %}
+    <!-- Empty State -->
+    <div class="row">
+        <div class="col-12">
+            <div class="text-center py-5 fade-in">
+                <i class="fas fa-suitcase fa-5x text-muted mb-4"></i>
+                <h3 class="text-muted mb-3">No trips planned yet</h3>
+                <p class="text-muted mb-4">Start planning your next adventure!</p>
+                <a href="/create-trip" class="btn btn-primary btn-lg">
+                    <i class="fas fa-plus"></i> Create Your First Trip
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .trip-card {
+        transition: transform 0.3s, box-shadow 0.3s;
+        border: none;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .trip-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+
+    .card-header {
+        border-bottom: none;
+        padding: 1rem 1.25rem;
+    }
+
+    .detail-item {
+        padding-left: 1.8rem;
+        position: relative;
+    }
+
+    .detail-item i {
+        position: absolute;
+        left: 0;
+        top: 3px;
+    }
+
+    .budget-box {
+        padding: 0.5rem;
+        border-radius: 8px;
+        background: rgba(0,0,0,0.02);
+    }
+
+    .d-flex.gap-2 {
+        gap: 0.5rem;
+    }
+</style>
+{% endblock %}

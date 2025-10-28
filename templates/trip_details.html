@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}{{ trip.title }} - Trip Details{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <h2>{{ trip.title }}</h2>
+            <p class="text-muted">{{ trip.origin }} → {{ trip.destination }}</p>
+            
+            <!-- Destination Image -->
+            {% if destination_image %}
+            <div class="card mb-4">
+                <img src="{{ destination_image }}" class="card-img-top" alt="{{ trip.destination }}" style="max-height: 400px; object-fit: cover;">
+                <div class="card-body">
+                    <h5 class="card-title">📍 {{ trip.destination }}</h5>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Trip Overview Card -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Trip Overview</h5>
+                </div>
+                
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>📅 Start Date:</strong> {{ trip.start_date }}</p>
+                            <p><strong>📅 End Date:</strong> {{ trip.end_date }}</p>
+                            <p><strong>⏱️ Duration:</strong> {{ trip.calculate_duration() }} days</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>👥 Travelers:</strong> {{ trip.travelers_count }}</p>
+                            <p><strong>💰 Total Budget:</strong> ${{ trip.budget }}</p>
+                            <p><strong>💵 Cost per Day:</strong> ${{ trip.calculate_cost_per_day() }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI-Powered Features Section (NEW!) -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">🤖 AI Trip Assistant</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Get personalized recommendations powered by AI</p>
+                    <div class="row mt-3">
+                        <div class="col-md-6 mb-2">
+                            <button class="btn btn-primary w-100" onclick="generateItinerary()">
+                                📋 Generate Itinerary
+                            </button>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <button class="btn btn-success w-100" onclick="getTravelTips()">
+                                💡 Get Travel Tips
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Loading State -->
+                    <div id="ai-loading" class="text-center mt-3" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">AI is thinking...</p>
+                    </div>
+                    
+                    <!-- Results Display -->
+                    <div id="ai-results" class="mt-4" style="display: none;">
+                        <hr>
+                        <div id="ai-content" class="border p-3 rounded bg-light" style="white-space: pre-wrap; max-height: 500px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Budget Breakdown -->
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Budget Breakdown</h5>
+                </div>
+                <div class="card-body">
+                    <div class="progress mb-3" style="height: 30px;">
+                        <div class="progress-bar bg-info" style="width: 35%;">Accommodation</div>
+                        <div class="progress-bar bg-warning" style="width: 30%;">Food</div>
+                        <div class="progress-bar bg-danger" style="width: 20%;">Transport</div>
+                        <div class="progress-bar bg-success" style="width: 15%;">Activities</div>
+                    </div>
+                    <div class="row text-center">
+                        <div class="col-3">
+                            <h6>Accommodation</h6>
+                            <p class="text-muted">35%</p>
+                        </div>
+                        <div class="col-3">
+                            <h6>Food</h6>
+                            <p class="text-muted">30%</p>
+                        </div>
+                        <div class="col-3">
+                            <h6>Transport</h6>
+                            <p class="text-muted">20%</p>
+                        </div>
+                        <div class="col-3">
+                            <h6>Activities</h6>
+                            <p class="text-muted">15%</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="mb-4">
+                <a href="/edit-trip/{{ trip.id }}" class="btn btn-primary">Edit Trip</a>
+                <a href="/trips" class="btn btn-secondary">Back to Trips</a>
+                <form action="/delete-trip/{{ trip.id }}" method="post" style="display:inline;">
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this trip?');">Delete Trip</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Stats</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Cost per Person:</strong> ${{ (trip.budget / trip.travelers_count) | round(2) }}</p>
+                    <p><strong>Daily per Person:</strong> ${{ (trip.calculate_cost_per_day() / trip.travelers_count) | round(2) }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for AI Features -->
+<script>
+function generateItinerary() {
+    const destination = '{{ trip.destination }}';
+    const duration ='{{ trip.calculate_duration() }}';
+    
+    // Show loading
+    document.getElementById('ai-loading').style.display = 'block';
+    document.getElementById('ai-results').style.display = 'none';
+    
+    fetch('/api/generate-itinerary', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            destination: destination,
+            duration: duration,
+            interests: 'sightseeing, culture, food'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Hide loading, show results
+        document.getElementById('ai-loading').style.display = 'none';
+        document.getElementById('ai-results').style.display = 'block';
+        document.getElementById('ai-content').textContent = data.itinerary;
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('ai-loading').style.display = 'none';
+        alert('Failed to generate itinerary. Please try again.');
+    });
+}
+
+function getTravelTips() {
+    const destination = '{{ trip.destination }}';
+    const duration = '{{ trip.calculate_duration() }}';
+    const budget = '{{trip.budget }}';
+    const travelers = '{{ trip.travelers_count }}';
+    
+    // Show loading
+    document.getElementById('ai-loading').style.display = 'block';
+    document.getElementById('ai-results').style.display = 'none';
+    
+    fetch(`/api/travel-tips/${destination}?duration=${duration}&budget=${budget}&travelers=${travelers}`)
+    .then(response => response.json())
+    .then(data => {
+        // Hide loading, show results
+        document.getElementById('ai-loading').style.display = 'none';
+        document.getElementById('ai-results').style.display = 'block';
+        document.getElementById('ai-content').textContent = data.tips;
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('ai-loading').style.display = 'none';
+        alert('Failed to get travel tips. Please try again.');
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,29 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+*.env
+
+# Instance folder with configs
+instance/
+
+# PyCharm and VSCode
+.idea/
+.vscode/
+
+# Python environment
+*.egg-info/
+dist/
+build/
+
+# Logs and runtime files
+*.log
+*.pot
+*.pyc
+*.pyo
+*.pyd
+.Python

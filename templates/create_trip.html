@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% block title %}Create Trip - Tripplanner{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Header -->
+            <div class="text-center mb-4 fade-in">
+                <h2>
+                    <i class="fas fa-plus-circle text-primary"></i>
+                    Plan a New Trip
+                </h2>
+                <p class="text-muted">Fill in the details to start planning your adventure</p>
+            </div>
+
+            <!-- Main Form Card -->
+            <div class="card shadow-sm fade-in">
+                <div class="card-body p-4">
+                    <form method="POST" action="/create-trip" id="tripForm">
+                        
+                        <!-- Trip Title -->
+                        <div class="mb-3">
+                            <label for="title" class="form-label">
+                                <i class="fas fa-heading text-primary"></i>
+                                Trip Title <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" 
+                                   class="form-control form-control-lg" 
+                                   id="title" 
+                                   name="title" 
+                                   placeholder="e.g., Summer Vacation 2025" 
+                                   required>
+                        </div>
+
+                        <!-- Origin & Destination Row -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="origin" class="form-label">
+                                    <i class="fas fa-plane-departure text-success"></i>
+                                    Origin (From) <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="origin" 
+                                       name="origin" 
+                                       placeholder="e.g., New York" 
+                                       required>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="destination" class="form-label">
+                                    <i class="fas fa-map-marker-alt text-danger"></i>
+                                    Destination (To) <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="destination" 
+                                       name="destination" 
+                                       value="{{ destination }}" 
+                                       placeholder="e.g., Paris, Tokyo, Bali" 
+                                       required>
+                                <small class="form-text text-muted">
+                                    <i class="fas fa-globe"></i> Any city worldwide
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Dates Row -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="start_date" class="form-label">
+                                    <i class="fas fa-calendar-alt text-info"></i>
+                                    Start Date <span class="text-danger">*</span>
+                                </label>
+                                <input type="date" 
+                                       class="form-control" 
+                                       id="start_date" 
+                                       name="start_date" 
+                                       required>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="end_date" class="form-label">
+                                    <i class="fas fa-calendar-check text-info"></i>
+                                    End Date <span class="text-danger">*</span>
+                                </label>
+                                <input type="date" 
+                                       class="form-control" 
+                                       id="end_date" 
+                                       name="end_date" 
+                                       required>
+                                <small class="form-text text-danger" id="date-error" style="display: none;">
+                                    End date must be after start date
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Travelers -->
+                        <div class="mb-3">
+                            <label for="travelers_count" class="form-label">
+                                <i class="fas fa-users text-warning"></i>
+                                Number of Travelers <span class="text-danger">*</span>
+                            </label>
+                            <input type="number" 
+                                   class="form-control" 
+                                   id="travelers_count" 
+                                   name="travelers_count" 
+                                   min="1" 
+                                   max="50"
+                                   value="1" 
+                                   required>
+                        </div>
+
+                        <!-- Budget Estimate Card -->
+                        <div class="alert alert-light border" id="budget-estimate" style="display: none;">
+                            <h5 class="alert-heading">
+                                <i class="fas fa-calculator text-success"></i>
+                                Estimated Trip Cost
+                            </h5>
+                            <hr>
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <h4 class="text-success mb-0">$<span id="total-cost">0</span></h4>
+                                    <small class="text-muted">Total Budget</small>
+                                </div>
+                                <div class="col-4">
+                                    <h4 class="text-info mb-0">$<span id="per-day-cost">0</span></h4>
+                                    <small class="text-muted">Per Day</small>
+                                </div>
+                                <div class="col-4">
+                                    <h4 class="text-primary mb-0"><span id="duration-days">0</span></h4>
+                                    <small class="text-muted">Days</small>
+                                </div>
+                            </div>
+                            <hr>
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle"></i>
+                                <span id="budget-note">Estimate based on destination weather and cost of living</span>
+                            </small>
+                        </div>
+
+                        <!-- Loading Indicator -->
+                        <div id="budget-loading" class="text-center" style="display: none;">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <small class="text-muted ms-2">Calculating budget...</small>
+                        </div>
+
+                        <!-- Hidden Budget Field -->
+                        <input type="hidden" id="budget" name="budget" value="0">
+
+                        <!-- Action Buttons -->
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                <i class="fas fa-check-circle"></i> Create Trip
+                            </button>
+                            <a href="/trips" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Set minimum date to today
+document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('start_date').setAttribute('min', today);
+    document.getElementById('end_date').setAttribute('min', today);
+});
+
+// Date validation
+document.getElementById('end_date').addEventListener('change', function() {
+    const startDate = new Date(document.getElementById('start_date').value);
+    const endDate = new Date(this.value);
+    const errorMsg = document.getElementById('date-error');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    if (endDate <= startDate) {
+        errorMsg.style.display = 'block';
+        submitBtn.disabled = true;
+        this.classList.add('is-invalid');
+    } else {
+        errorMsg.style.display = 'none';
+        submitBtn.disabled = false;
+        this.classList.remove('is-invalid');
+        calculateBudget();
+    }
+});
+
+function calculateBudget() {
+    const destination = document.getElementById('destination').value;
+    const startDate = document.getElementById('start_date').value;
+    const endDate = document.getElementById('end_date').value;
+    const travelers = document.getElementById('travelers_count').value;
+    
+    if (destination && startDate && endDate && travelers) {
+        // Show loading
+        document.getElementById('budget-loading').style.display = 'block';
+        document.getElementById('budget-estimate').style.display = 'none';
+        
+        fetch('/api/calculate-budget', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                destination: destination,
+                start_date: startDate,
+                end_date: endDate,
+                travelers_count: travelers
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Hide loading
+            document.getElementById('budget-loading').style.display = 'none';
+            
+            if (data.total) {
+                document.getElementById('budget-estimate').style.display = 'block';
+                document.getElementById('total-cost').textContent = data.total.toLocaleString();
+                document.getElementById('per-day-cost').textContent = data.per_day.toLocaleString();
+                document.getElementById('duration-days').textContent = data.duration;
+                
+                // Set hidden budget field
+                document.getElementById('budget').value = data.total;
+            }
+        })
+        .catch(err => {
+            console.error('Error:', err);
+            document.getElementById('budget-loading').style.display = 'none';
+        });
+    }
+}
+
+// Add event listeners
+document.getElementById('destination').addEventListener('blur', calculateBudget);
+document.getElementById('start_date').addEventListener('change', function() {
+    const endDateInput = document.getElementById('end_date');
+    endDateInput.setAttribute('min', this.value);
+    calculateBudget();
+});
+document.getElementById('end_date').addEventListener('change', calculateBudget);
+document.getElementById('travelers_count').addEventListener('input', calculateBudget);
+</script>
+
+<style>
+.form-control:focus {
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.alert-light {
+    background-color: #f8f9fa;
+}
+
+.is-invalid {
+    border-color: #dc3545 !important;
+}
+</style>
+{% endblock %}
