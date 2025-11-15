@@ -111,6 +111,7 @@
                                    value="1" 
                                    required>
                         </div>
+                        
 
                         <!-- Budget Estimate Card -->
                         <div class="alert alert-light border" id="budget-estimate" style="display: none;">
@@ -121,11 +122,11 @@
                             <hr>
                             <div class="row text-center">
                                 <div class="col-4">
-                                    <h4 class="text-success mb-0">$<span id="total-cost">0</span></h4>
+                                    <h4 class="text-success mb-0">₹<span id="total-cost">0</span></h4>
                                     <small class="text-muted">Total Budget</small>
                                 </div>
                                 <div class="col-4">
-                                    <h4 class="text-info mb-0">$<span id="per-day-cost">0</span></h4>
+                                    <h4 class="text-info mb-0">₹<span id="per-day-cost">0</span></h4>
                                     <small class="text-muted">Per Day</small>
                                 </div>
                                 <div class="col-4">
@@ -138,6 +139,16 @@
                                 <i class="fas fa-info-circle"></i>
                                 <span id="budget-note">Estimate based on destination weather and cost of living</span>
                             </small>
+                        </div>
+
+
+                        <div class="form-group">
+                        <label for="budget_level">Budget Level:</label>
+                        <select id="budget_level" name="budget_level" class="form-control" required>
+                            <option value="low">Low</option>
+                            <option value="mid" selected>Mid</option>
+                            <option value="high">High</option>
+                        </select>
                         </div>
 
                         <!-- Loading Indicator -->

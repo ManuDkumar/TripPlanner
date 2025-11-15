@@ -110,6 +110,18 @@
                                    required>
                         </div>
 
+                       
+                        <!-- Budget Level -->
+                            <div class="form-group">
+                            <label for="budget_level">Select your budget type:</label><br/>
+                            <input type="radio" id="budget_low" name="budget_level" value="low" checked> 
+                            <label for="budget_low">Low</label><br/>
+                            <input type="radio" id="budget_mid" name="budget_level" value="mid"> 
+                            <label for="budget_mid">Mid</label><br/>
+                            <input type="radio" id="budget_high" name="budget_level" value="high"> 
+                            <label for="budget_high">High</label><br/>
+                        </div>
+
                         <!-- Budget Estimate Card -->
                         <div class="alert alert-light border" id="budget-estimate">
                             <h5 class="alert-heading">
@@ -119,11 +131,11 @@
                             <hr>
                             <div class="row text-center">
                                 <div class="col-4">
-                                    <h4 class="text-success mb-0">$<span id="total-cost">{{ trip.budget }}</span></h4>
+                                    <h4 class="text-success mb-0">₹<span id="total-cost">{{ trip.budget }}</span></h4>
                                     <small class="text-muted">Total Budget</small>
                                 </div>
                                 <div class="col-4">
-                                    <h4 class="text-info mb-0">$<span id="per-day-cost">{{ trip.calculate_cost_per_day() }}</span></h4>
+                                    <h4 class="text-info mb-0">₹<span id="per-day-cost">{{ trip.calculate_cost_per_day() }}</span></h4>
                                     <small class="text-muted">Per Day</small>
                                 </div>
                                 <div class="col-4">

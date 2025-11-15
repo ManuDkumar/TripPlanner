@@ -45,8 +45,8 @@
         <div class="col-md-3 col-6 mb-3">
             <div class="card text-center">
                 <div class="card-body">
-                    <i class="fas fa-dollar-sign fa-2x text-warning mb-2"></i>
-                    <h3 class="mb-0">${{ total_budget|round|int }}</h3>
+                    <i class="fas fa-indian-rupee-sign fa-2x text-warning mb-2"></i>
+                    <h3 class="mb-0">₹{{ total_budget|round|int }}</h3>
                     <small class="text-muted">Total Budget</small>
                 </div>
             </div>
@@ -105,13 +105,13 @@
                     <div class="row text-center">
                         <div class="col-6">
                             <div class="budget-box">
-                                <h5 class="text-success mb-0">${{ trip.budget }}</h5>
+                                <h5 class="text-success mb-0">₹{{ trip.budget }}</h5>
                                 <small class="text-muted">Total Budget</small>
                             </div>
                         </div>
                         <div class="col-6">
                             <div class="budget-box">
-                                <h5 class="text-info mb-0">${{ trip.calculate_cost_per_day() }}</h5>
+                                <h5 class="text-info mb-0">₹{{ trip.calculate_cost_per_day() }}</h5>
                                 <small class="text-muted">Per Day</small>
                             </div>
                         </div>

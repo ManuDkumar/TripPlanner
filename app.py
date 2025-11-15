@@ -8,6 +8,8 @@ from flask_mail import Mail, Message
 from pytrends.request import TrendReq
 import google.generativeai as genai
 from dotenv import load_dotenv
+from flask_migrate import Migrate
+
 
 load_dotenv()
 
@@ -18,6 +20,7 @@ app.secret_key = os.getenv('SECRET_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///trips.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
 app.config['MAIL_PORT'] = os.getenv('MAIL_PORT')
@@ -55,6 +58,7 @@ class Trip(db.Model):
     destination = db.Column(db.String(100), nullable=False)
     start_date = db.Column(db.String(20), nullable=False)
     end_date = db.Column(db.String(20), nullable=False)
+    budget_level = db.Column(db.String(20), nullable=False)
     budget = db.Column(db.Float)
     travelers_count = db.Column(db.Integer, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -307,125 +311,114 @@ def get_dynamic_budget_estimate(destination):
     cost_per_day = base_cost + random.randint(-20, 30)
     return max(50, cost_per_day)
 
-def calculate_trip_budget(destination, start_date, end_date, travelers_count):
-    """Fully dynamic budget calculation"""
+
+
+@app.route('/api/trending', methods=['GET'])
+def get_trending_places():
+    trending_places = [
+        {'name': 'Paris', 'country': 'France'},
+        {'name': 'Tokyo', 'country': 'Japan'},
+        {'name': 'Dubai', 'country': 'UAE'},
+        {'name': 'Goa', 'country': 'India'},
+        {'name': 'Shimla', 'country': 'India'},
+        {'name': 'Jaipur', 'country': 'India'}
+    ]
+
+    results = []
+    for place in trending_places:
+        city = place['name']
+        weather = get_weather(city)
+        if not weather:
+            continue
+        budget = get_dynamic_budget_estimate(city)
+        image_url = get_destination_image(city)
+        if not image_url:
+            image_url = f'https://via.placeholder.com/800x600/4A90E2/FFFFFF?text={city}'
+        results.append({
+            'name': city,
+            'country': place['country'],
+            'current_temp': weather['temp'],
+            'weather_desc': weather['description'],
+            'weather_type': weather['weather_type'],
+            'weather_icon': f"http://openweathermap.org/img/wn/{weather['icon']}@2x.png",
+            'image': image_url,
+            'approx_cost_per_day': budget or 100,
+            'season': 'Year-round',
+            'why_now': f'Popular destination with {weather["description"]} weather'
+        })
+    return jsonify(results)
+
+import pandas as pd
+
+# Load cost of living CSV at startup
+try:
+    col_df = pd.read_csv('Cost_of_Living_Index_by_Country_2024.csv')
+    cost_of_living_map = dict(zip(col_df['Country'].str.strip().str.lower(), col_df['Cost_of_Living_Index']))
+except Exception as e:
+    print(f"Error loading cost of living CSV: {e}")
+    cost_of_living_map = {}
+
+
+USD_TO_INR = 83  # example conversion rate
+
+def calculate_trip_budget(origin_country, destination_country, days, number_of_people, budget_level, travel_cost=0):
+    """
+    Calculate total trip budget converted to INR
+    """
+    # Normalize country names to lowercase for comparison
+    origin = origin_country.strip().lower()
+    destination = destination_country.strip().lower()
+
+    # Determine if trip is local (same country)
+    is_local_trip = (origin == destination)
+
+    # Cost of living factor mapping by country
+    col_dest = cost_of_living_map.get(destination, 1.0)
+
+    # Set base daily cost USD differently for local and non-local trips
+    base_daily_cost_usd = 40 if is_local_trip else 100
+
+    budget_multipliers = {
+        'low': 0.7,
+        'mid': 1.0,
+        'high': 1.3
+    }
+    tier_multiplier = budget_multipliers.get(budget_level.lower(), 1.0)
+
+    total_budget_usd = (base_daily_cost_usd * col_dest * days * number_of_people * tier_multiplier) + travel_cost
+    total_budget_inr = total_budget_usd * USD_TO_INR
+
+    return round(total_budget_inr, 2)
+
+
+def get_country_from_destination(destination):
+    """
+    Returns the country name of a destination using OpenStreetMap Nominatim API with User-Agent header.
+    """
     try:
-        start = datetime.strptime(start_date, '%Y-%m-%d')
-        end = datetime.strptime(end_date, '%Y-%m-%d')
-        duration = (end - start).days
-        
-        if duration <= 0:
-            return None
-        
-        cost_per_day = get_dynamic_budget_estimate(destination)
-        
-        if not cost_per_day:
-            return None
-        
-        total = cost_per_day * duration * travelers_count
-        
-        return {
-            'total': round(total, 2),
-            'per_day': round(cost_per_day * travelers_count, 2),
-            'duration': duration,
-            'source': 'dynamic_estimate',
-            'is_estimate': True
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {
+            'q': destination,
+            'format': 'json',
+            'addressdetails': 1,
+            'limit': 1
         }
+        headers = {
+            'User-Agent': 'TripPlannerPro/1.0 (manukumarhnm@gmail.com)'  # Use your app name and contact info
+        }
+        response = requests.get(url, params=params, headers=headers)
+        response.raise_for_status()
+        results = response.json()
+        if results and 'address' in results[0]:
+            address = results[0]['address']
+            country = address.get('country')
+            if country:
+                return country.lower()
+        return None
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error fetching country for destination '{destination}': {e}")
         return None
 
-def get_fallback_trending():
-    """Fallback trending destinations if Google Trends fails"""
-    seed_cities = ['Paris', 'Tokyo', 'London', 'Dubai', 'Singapore', 'Barcelona']
-    
-    trending = []
-    for city in seed_cities:
-        weather = get_weather(city)
-        if weather:
-            budget = get_dynamic_budget_estimate(city)
-            image_url = get_destination_image(city)
-            
-            trending.append({
-                'name': city,
-                'current_temp': weather['temp'],
-                'weather_desc': weather['description'],
-                'weather_type': weather['weather_type'],
-                'weather_icon': f"http://openweathermap.org/img/wn/{weather['icon']}@2x.png",
-                'image': image_url or f'https://via.placeholder.com/800x600/4A90E2/FFFFFF?text={city}',
-                'approx_cost_per_day': budget or 100,
-                'season': 'Current',
-                'why_now': f'Popular destination - {weather["description"]}'
-            })
-    
-    return trending
-
-def get_trending_from_google():
-    """Get trending travel destinations from Google Trends"""
-    try:
-        pytrends = TrendReq(hl='en-US', tz=360)
-        
-        # Popular travel destinations to track
-        destinations = [
-            'Paris travel', 'Tokyo travel', 'Bali travel', 
-            'Dubai travel', 'London travel', 'Barcelona travel',
-            'Rome travel', 'New York travel', 'Singapore travel',
-            'Bangkok travel'
-        ]
-        
-        # Build payload (last 30 days)
-        pytrends.build_payload(destinations, timeframe='today 1-m')
-        
-        # Get interest over time
-        trending_data = pytrends.interest_over_time()
-        
-        if trending_data.empty:
-            print("Google Trends returned no data, using fallback")
-            return get_fallback_trending()
-        
-        # Calculate average interest for each destination
-        trending_list = []
-        for dest in destinations:
-            if dest in trending_data.columns:
-                avg_interest = trending_data[dest].mean()
-                city_name = dest.replace(' travel', '').strip()
-                
-                trending_list.append({
-                    'city': city_name,
-                    'interest_score': float(avg_interest)
-                })
-        
-        # Sort by interest score (highest first)
-        trending_list.sort(key=lambda x: x['interest_score'], reverse=True)
-        
-        # Get top 6 destinations with full data
-        result = []
-        for item in trending_list[:6]:
-            city = item['city']
-            weather = get_weather(city)
-            
-            if weather:
-                budget = get_dynamic_budget_estimate(city)
-                image_url = get_destination_image(city)
-                
-                result.append({
-                    'name': city,
-                    'current_temp': weather['temp'],
-                    'weather_desc': weather['description'],
-                    'weather_type': weather['weather_type'],
-                    'weather_icon': f"http://openweathermap.org/img/wn/{weather['icon']}@2x.png",
-                    'image': image_url or f'https://via.placeholder.com/800x600/4A90E2/FFFFFF?text={city}',
-                    'approx_cost_per_day': budget or 100,
-                    'season': 'Current',
-                    'why_now': f'🔥 Trending now - {weather["description"]}',
-                    'trend_score': round(item['interest_score'], 1)
-                })
-        
-        return result if result else get_fallback_trending()
-        
-    except Exception as e:
-        print(f"Google Trends error: {e}")
-        return get_fallback_trending()
 
 # Routes
 @app.route('/')
@@ -433,43 +426,62 @@ def home():
     is_authenticated = current_user.is_authenticated
     return render_template('home.html', is_authenticated=is_authenticated)
 
-@app.route('/api/trending', methods=['GET'])
-def get_trending_places():
-    trending = get_trending_from_google()
-    return jsonify(trending)
 
 @app.route('/api/search', methods=['GET'])
 def search_places():
-    query = request.args.get('q', '').lower().strip()
-    
-    if len(query) < 2:
+    query = request.args.get('q', '').strip()
+    if len(query) < 3:
         return jsonify([])
-    
-    weather = get_weather(query.title())
-    
-    if not weather:
-        return jsonify([])
-    
-    budget = get_dynamic_budget_estimate(query.title())
-    
-    # Fetch image dynamically
-    image_url = get_destination_image(query.title())
-    if not image_url:
-        image_url = f'https://via.placeholder.com/800x600/4A90E2/FFFFFF?text={query.title()}'
-    
-    result = {
-        'name': query.title(),
-        'current_temp': weather['temp'],
-        'weather_desc': weather['description'],
-        'weather_type': weather['weather_type'],
-        'weather_icon': f"http://openweathermap.org/img/wn/{weather['icon']}@2x.png",
-        'image': image_url,
-        'approx_cost_per_day': budget or 100,
-        'season': 'Year-round',
-        'why_now': f'Current: {weather["description"]}'
+
+    nominatim_url = 'https://nominatim.openstreetmap.org/search'
+    params = {
+        'q': query,
+        'format': 'json',
+        'addressdetails': 1,
+        'limit': 5
     }
-    
-    return jsonify([result])
+    headers = {
+        'User-Agent': 'TripPlannerPro/1.0 (manukumarhnml@gmail.com)'
+    }
+    try:
+        response = requests.get(nominatim_url, params=params, headers=headers, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+
+        results = []
+        for item in data:
+            name = item.get('display_name')
+            lat = item.get('lat')
+            lon = item.get('lon')
+            place_type = item.get('type')
+
+            address = item.get('address', {})
+            city_name = address.get('city') or address.get('town') or address.get('village')
+
+            weather = get_weather(city_name) if city_name else None
+            budget = get_dynamic_budget_estimate(city_name) if city_name else None
+            image_url = get_destination_image(city_name) if city_name else None
+            if not image_url:
+                image_url = f'https://via.placeholder.com/800x600/4A90E2/FFFFFF?text={name[:20]}'
+
+            results.append({
+                'name': name,
+                'lat': lat,
+                'lon': lon,
+                'type': place_type,
+                'current_temp': weather['temp'] if weather else None,
+                'weather_desc': weather['description'] if weather else None,
+                'weather_icon': f"http://openweathermap.org/img/wn/{weather['icon']}@2x.png" if weather else None,
+                'image': image_url,
+                'approx_cost_per_day': budget or 100,
+                'season': 'Year-round',
+                'why_now': f'Current: {weather["description"]}' if weather else None
+            })
+        return jsonify(results)
+    except requests.RequestException as e:
+        print(f"OpenStreetMap Nominatim API error: {e}")
+        return jsonify([]), 500
+
 
 @app.route('/api/weather/<city>', methods=['GET'])
 def get_city_weather(city):
@@ -479,22 +491,46 @@ def get_city_weather(city):
     else:
         return jsonify({'error': 'Could not fetch weather'}), 404
 
+
 @app.route('/api/calculate-budget', methods=['POST'])
 def api_calculate_budget():
-    data = request.get_json()
-    
-    budget_info = calculate_trip_budget(
-        data.get('destination'),
-        data.get('start_date'),
-        data.get('end_date'),
-        int(data.get('travelers_count', 1))
-    )
-    
-    if budget_info:
-        return jsonify(budget_info)
-    else:
-        return jsonify({'error': 'Invalid data'}), 400
+    try:
+        data = request.get_json()
 
+        origin_country = data.get('origin_country') or 'india'
+        destination_country = data.get('destination_country') or 'india'
+        budget_level = data.get('budget_level', 'mid')
+
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        if not start_date or not end_date:
+            return jsonify({'error': 'Missing start_date or end_date'}), 400
+        try:
+            days = (datetime.strptime(end_date, '%Y-%m-%d') - datetime.strptime(start_date, '%Y-%m-%d')).days
+            if days <= 0:
+                return jsonify({'error': 'Invalid date range'}), 400
+        except Exception:
+            return jsonify({'error': 'Invalid date format'}), 400
+
+        try:
+            travelers_count = int(data.get('travelers_count', 1))
+            if travelers_count <= 0:
+                return jsonify({'error': 'Travelers count must be positive integer'}), 400
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid travelers_count parameter'}), 400
+
+        budget_info = calculate_trip_budget(
+            origin_country,
+            destination_country,
+            days,
+            travelers_count,
+            budget_level
+        )
+
+        return jsonify(budget_info)
+
+    except Exception as e:
+        return jsonify({'error': 'Internal server error: ' + str(e)}), 500
 
 # Register route
 @app.route('/register', methods=['GET', 'POST'])
@@ -546,7 +582,7 @@ def logout():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Create trip route
+
 @app.route('/create-trip', methods=['GET', 'POST'])
 @login_required
 def create_trip():
@@ -556,8 +592,31 @@ def create_trip():
         destination = request.form['destination']
         start_date = request.form['start_date']
         end_date = request.form['end_date']
-        budget = float(request.form.get('budget', 0))
         travelers_count = int(request.form['travelers_count'])
+        budget_level = request.form.get('budget_level', 'mid')
+        travel_cost = 0  # or get from form if applicable
+
+        # Calculate days of trip
+        try:
+            start = datetime.strptime(start_date, '%Y-%m-%d')
+            end = datetime.strptime(end_date, '%Y-%m-%d')
+            days = (end - start).days
+            if days <= 0:
+                flash('End date must be after start date.', 'danger')
+                return render_template('create_trip.html', destination=destination)
+        except ValueError:
+            flash('Invalid date format.', 'danger')
+            return render_template('create_trip.html', destination=destination)
+
+        # Calculate trip budget in INR using your function
+        budget = calculate_trip_budget(
+            origin,
+            destination,
+            days,
+            travelers_count,
+            budget_level,
+            travel_cost
+        )
 
         new_trip = Trip(
             title=title,
@@ -566,17 +625,19 @@ def create_trip():
             start_date=start_date,
             end_date=end_date,
             budget=budget,
-             travelers_count=travelers_count,
+            budget_level=budget_level,
+            travelers_count=travelers_count,
             user_id=current_user.id
         )
+
         db.session.add(new_trip)
         db.session.commit()
 
-        flash(f'Trip "{title}" created successfully!', 'success')
+        flash(f'Trip "{title}" created successfully with budget {budget} INR!', 'success')
         return redirect(url_for('view_trips'))
-    
+
     destination = request.args.get('destination', '')
-    return render_template("create_trip.html", destination=destination)
+    return render_template('create_trip.html', destination=destination)
 
 @app.route('/trips')
 @login_required
@@ -608,23 +669,39 @@ def trip_details(trip_id):
 @login_required
 def edit_trip(trip_id):
     trip = Trip.query.get_or_404(trip_id)
-    
-    if trip.user_id != current_user.id:
-        return "Unauthorized", 403
-    
     if request.method == 'POST':
-        trip.title = request.form['title']
-        trip.origin = request.form['origin']
-        trip.destination = request.form['destination']
-        trip.start_date = request.form['start_date']
-        trip.end_date = request.form['end_date']
-        trip.budget = float(request.form.get('budget', 0))
-        trip.travelers_count = int(request.form['travelers_count'])
+        destination = request.form.get('destination')
+        start_date = request.form.get('start_date')
+        end_date = request.form.get('end_date')
+        travelers_count = int(request.form.get('travelers_count', 1))
+        budget_level = request.form.get('budget_level', 'mid')
+
+        origin_country = current_user.country if hasattr(current_user, 'country') else 'india'
+        destination_country = get_country_from_destination(destination) or 'india'
+
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+        days = (end - start).days
+        if days <= 0:
+            flash("End date must be after start date")
+            return redirect(url_for('edit_trip', trip_id=trip_id))
+
+        travel_cost = 0
+
+        budget = calculate_trip_budget(origin_country, destination_country, days, travelers_count, budget_level, travel_cost)
+
+        trip.destination = destination
+        trip.start_date = start_date
+        trip.end_date = end_date
+        trip.travelers_count = travelers_count
+        trip.budget = budget
+        trip.budget_level = budget_level
+
         db.session.commit()
-        
+        flash("Trip updated successfully")
         return redirect(url_for('view_trips'))
-    
-    return render_template("edit_trip.html", trip=trip)
+
+    return render_template('edit_trip.html', trip=trip)
 
 # Delete trip route
 @app.route('/delete-trip/<int:trip_id>', methods=['POST'])
