@@ -1,4 +1,4 @@
-Rank,Country,Cost of Living Index,Rent Index,Cost of Living Plus Rent Index,Groceries Index,Restaurant Price Index,Local Purchasing Power Index
+Rank,Country,Cost_of_Living_Index,Rent Index,Cost of Living Plus Rent Index,Groceries Index,Restaurant Price Index,Local Purchasing Power Index
 1,Switzerland,101.1,46.5,74.9,109.1,97.0,158.7
 2,Bahamas,85.0,36.7,61.8,81.6,83.3,54.6
 3,Iceland,83.0,39.2,62.0,88.4,86.8,120.3
