@@ -654,48 +654,66 @@ def logout():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+def is_valid_place(place_details):
+    if not place_details:
+        return False
+    # Check if place details are meaningful, for example have a country and display name
+    required_fields = ['display_name', 'country', 'lat', 'lon']
+    for field in required_fields:
+        if field not in place_details or not place_details[field]:
+            return False
+    return True
 
+    
 @app.route('/create-trip', methods=['GET', 'POST'])
 @login_required
 def create_trip():
-    days = 0  # Initialize days to avoid undefined error
     if request.method == 'POST':
-        title = request.form['title']
-        origin = request.form['origin']
-        destination = request.form['destination']
-        start_date = request.form['start_date']
-        end_date = request.form['end_date']
-        travelers_count = int(request.form['travelers_count'])
+        origin = request.form.get('origin')
+        destination = request.form.get('destination')
+        title = request.form.get('title')
+        start_date = request.form.get('start_date')
+        end_date = request.form.get('end_date')
+        travelers_count = int(request.form.get('travelers_count', 1))
         budget_level = request.form.get('budget_level', 'mid')
 
-        # Calculate days of trip
+        # Validate required inputs
+        if not origin:
+            flash('Please enter an origin location.', 'danger')
+            return render_template('create_trip.html', origin=origin, destination=destination, title=title)
+        if not destination:
+            flash('Please enter a destination location.', 'danger')
+            return render_template('create_trip.html', origin=origin, destination=destination, title=title)
+
+        # Get place details
+        origin_details = get_place_details(origin)
+        destination_details = get_place_details(destination)
+
+        # Validate place details
+        if not is_valid_place(origin_details):
+            flash('Invalid origin location entered. Please enter a valid location.', 'danger')
+            return render_template('create_trip.html', origin=origin, destination=destination, title=title)
+
+        if not is_valid_place(destination_details):
+            flash('Invalid destination location entered. Please enter a valid location.', 'danger')
+            return render_template('create_trip.html', origin=origin, destination=destination, title=title)
+
+        # Validate and calculate trip days
         try:
             start = datetime.strptime(start_date, '%Y-%m-%d')
             end = datetime.strptime(end_date, '%Y-%m-%d')
             days = (end - start).days
             if days <= 0:
                 flash('End date must be after start date.', 'danger')
-                return render_template('create_trip.html', destination=destination)
+                return render_template('create_trip.html', origin=origin, destination=destination, title=title)
         except ValueError:
             flash('Invalid date format.', 'danger')
-            return render_template('create_trip.html', destination=destination)
+            return render_template('create_trip.html', origin=origin, destination=destination, title=title)
 
-        # Normalize origin and destination places
-        origin_details = get_place_details(origin)
-        destination_details = get_place_details(destination)
+        origin_country = origin_details.get('country', '')
+        destination_country = destination_details.get('country', '')
 
-        # Ensure country strings are passed, not dicts
-        origin_country = origin_details.get('country', '') if origin_details else ''
-        destination_country = destination_details.get('country', '') if destination_details else ''
-
-        # Calculate trip budget in INR using updated function
-        budget = calculate_trip_budget(
-            origin_country,
-            destination_country,
-            days,
-            travelers_count,
-            budget_level
-        )
+        budget = calculate_trip_budget(origin_country, destination_country, days, travelers_count, budget_level)
 
         new_trip = Trip(
             title=title,
@@ -715,7 +733,7 @@ def create_trip():
         flash(f'Trip "{title}" created successfully with budget {budget["total_inr"]} INR!', 'success')
         return redirect(url_for('view_trips'))
 
-    # GET request handling
+    # GET request
     destination = request.args.get('destination', '')
     return render_template('create_trip.html', destination=destination)
 
@@ -752,15 +770,35 @@ def edit_trip(trip_id):
 
     if request.method == 'POST':
         # Extract form data
-        title = request.form['title']
-        origin = request.form['origin']
-        destination = request.form['destination']
-        start_date = request.form['start_date']
-        end_date = request.form['end_date']
-        travelers_count = int(request.form['travelers_count'])
+        title = request.form.get('title')
+        origin = request.form.get('origin')
+        destination = request.form.get('destination')
+        start_date = request.form.get('start_date')
+        end_date = request.form.get('end_date')
+        travelers_count = int(request.form.get('travelers_count', 1))
         budget_level = request.form.get('budget_level', 'mid')
 
-        # Calculate days between start and end dates
+        # Validate required inputs
+        if not origin:
+            flash('Please enter an origin location.', 'danger')
+            return render_template('edit_trip.html', trip=trip)
+        if not destination:
+            flash('Please enter a destination location.', 'danger')
+            return render_template('edit_trip.html', trip=trip)
+
+        # Get place details
+        origin_details = get_place_details(origin)
+        destination_details = get_place_details(destination)
+
+        # Validate place data
+        if not is_valid_place(origin_details):
+            flash('Invalid origin location entered. Please enter a valid location.', 'danger')
+            return render_template('edit_trip.html', trip=trip)
+        if not is_valid_place(destination_details):
+            flash('Invalid destination location entered. Please enter a valid location.', 'danger')
+            return render_template('edit_trip.html', trip=trip)
+
+        # Validate date range
         try:
             start = datetime.strptime(start_date, '%Y-%m-%d')
             end = datetime.strptime(end_date, '%Y-%m-%d')
@@ -772,24 +810,12 @@ def edit_trip(trip_id):
             flash('Invalid date format.', 'danger')
             return render_template('edit_trip.html', trip=trip)
 
-        # Get place details
-        origin_details = get_place_details(origin)
-        destination_details = get_place_details(destination)
+        origin_country = origin_details.get('country', '')
+        destination_country = destination_details.get('country', '')
 
-        # Extract country strings to pass to budget calculation
-        origin_country = origin_details.get('country', '') if origin_details else ''
-        destination_country = destination_details.get('country', '') if destination_details else ''
+        budget = calculate_trip_budget(origin_country, destination_country, days, travelers_count, budget_level)
 
-        # Calculate budget
-        budget = calculate_trip_budget(
-            origin_country,
-            destination_country,
-            days,
-            travelers_count,
-            budget_level
-        )
-
-        # Update trip details and budget (store total_inr only)
+        # Update trip data
         trip.title = title
         trip.origin = origin
         trip.destination = destination
@@ -804,7 +830,7 @@ def edit_trip(trip_id):
         flash(f'Trip "{title}" updated successfully with budget {budget["total_inr"]} INR!', 'success')
         return redirect(url_for('view_trips'))
 
-    # For GET request, render edit form
+    # GET request
     return render_template('edit_trip.html', trip=trip)
 
 # Delete trip route

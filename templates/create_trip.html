@@ -18,6 +18,18 @@
             <div class="card shadow-sm fade-in">
                 <div class="card-body p-4">
                     <form method="POST" action="/create-trip" id="tripForm">
+
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+
                         
                         <!-- Trip Title -->
                         <div class="mb-3">
@@ -33,6 +45,8 @@
                                    required>
                         </div>
 
+                        
+
                         <!-- Origin & Destination Row -->
                         <div class="row">
                             <div class="col-md-6 mb-3">
@@ -42,7 +56,7 @@
                                 </label>
                                 <input type="text" 
                                        class="form-control" 
-                                       id="origin" 
+                                       id="origin-input" 
                                        name="origin" 
                                        placeholder="e.g., New York" 
                                        required>
@@ -55,7 +69,7 @@
                                 </label>
                                 <input type="text" 
                                        class="form-control" 
-                                       id="destination" 
+                                       id="destination-input" 
                                        name="destination" 
                                        value="{{ destination }}" 
                                        placeholder="e.g., Paris, Tokyo, Bali" 
@@ -206,7 +220,7 @@ document.getElementById('end_date').addEventListener('change', function() {
 });
 
 function calculateBudget() {
-    const destination = document.getElementById('destination').value;
+    const destination = document.getElementById('destination-input').value;
     const startDate = document.getElementById('start_date').value;
     const endDate = document.getElementById('end_date').value;
     const travelers = document.getElementById('travelers_count').value;
@@ -248,8 +262,82 @@ function calculateBudget() {
     }
 }
 
+//<!-- Add this in your <head> or before closing </body> -->
+  // Debounce function to limit API calls while typing
+  function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      }
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
+  function setupAutocomplete(inputId) {
+    const input = document.getElementById(inputId);
+    const resultsList = document.createElement('ul');
+    resultsList.style.border = '1px solid #ccc';
+    resultsList.style.position = 'absolute';
+    resultsList.style.zIndex = '1000';
+    resultsList.style.background = '#fff';
+    resultsList.style.listStyleType = 'none';
+    resultsList.style.padding = '0';
+    resultsList.style.marginTop = '0';
+    resultsList.style.width = input.offsetWidth + 'px';
+    resultsList.style.maxHeight = '200px';
+    resultsList.style.overflowY = 'auto';
+    input.parentNode.appendChild(resultsList);
+
+    input.addEventListener('input', debounce(function() {
+      const query = input.value;
+      if (query.length < 3) {
+        resultsList.innerHTML = '';
+        return;
+      }
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=${encodeURIComponent(query)}`)
+        .then(res => res.json())
+        .then(data => {
+          resultsList.innerHTML = '';
+          if (!data.length) {
+            const li = document.createElement('li');
+            li.textContent = 'No results found';
+            li.style.padding = '5px';
+            resultsList.appendChild(li);
+            return;
+          }
+          data.forEach(place => {
+            const li = document.createElement('li');
+            li.textContent = place.display_name;
+            li.style.padding = '5px';
+            li.style.cursor = 'pointer';
+            li.addEventListener('click', () => {
+              input.value = place.display_name;
+              resultsList.innerHTML = '';
+            });
+            resultsList.appendChild(li);
+          });
+        });
+    }, 300));
+
+    // Close list if clicked outside
+    document.addEventListener('click', (e) => {
+      if (!input.contains(e.target) && !resultsList.contains(e.target)) {
+        resultsList.innerHTML = '';
+      }
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setupAutocomplete('origin-input');
+    setupAutocomplete('destination-input');
+  });
+
+
 // Add event listeners
-document.getElementById('destination').addEventListener('blur', calculateBudget);
+document.getElementById('destination-input').addEventListener('blur', calculateBudget);
 document.getElementById('start_date').addEventListener('change', function() {
     const endDateInput = document.getElementById('end_date');
     endDateInput.setAttribute('min', this.value);
