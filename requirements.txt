@@ -4,7 +4,6 @@ Flask-Login==0.6.2
 Flask-Mail==0.9.1
 python-dotenv==1.0.0
 requests==2.31.0
-pytrends==4.10.0
 google-generativeai==0.0.2
 Werkzeug==2.2.3
 Flask-Migrate

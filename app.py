@@ -1,14 +1,15 @@
 from flask import Flask, render_template, request, url_for, jsonify, redirect,flash
 from flask_sqlalchemy import SQLAlchemy
-import os, secrets, requests, random
+import os, secrets, requests
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from flask_mail import Mail, Message
-from pytrends.request import TrendReq
 import google.generativeai as genai
 from dotenv import load_dotenv
 from flask_migrate import Migrate
+import pandas as pd
+import math
 
 
 load_dotenv()
@@ -289,28 +290,6 @@ def get_destination_image(destination):
         print(f"Unsplash API error for {destination}: {e}")
         return None
 
-def get_dynamic_budget_estimate(destination):
-    """Calculate budget using weather-based estimation"""
-    weather = get_weather(destination)
-    
-    if not weather:
-        return None
-    
-    temp = weather['temp']
-    
-    # Climate-based estimation
-    if temp > 25:
-        base_cost = 70
-    elif temp > 15:
-        base_cost = 100
-    elif temp > 5:
-        base_cost = 120
-    else:
-        base_cost = 90
-    
-    cost_per_day = base_cost + random.randint(-20, 30)
-    return max(50, cost_per_day)
-
 
 
 @app.route('/api/trending', methods=['GET'])
@@ -330,7 +309,6 @@ def get_trending_places():
         weather = get_weather(city)
         if not weather:
             continue
-        budget = get_dynamic_budget_estimate(city)
         image_url = get_destination_image(city)
         if not image_url:
             image_url = f'https://via.placeholder.com/800x600/4A90E2/FFFFFF?text={city}'
@@ -342,78 +320,101 @@ def get_trending_places():
             'weather_type': weather['weather_type'],
             'weather_icon': f"http://openweathermap.org/img/wn/{weather['icon']}@2x.png",
             'image': image_url,
-            'approx_cost_per_day': budget or 100,
             'season': 'Year-round',
             'why_now': f'Popular destination with {weather["description"]} weather'
         })
     return jsonify(results)
 
-import pandas as pd
 
-# Load cost of living CSV at startup
+
+# Load Cost of Living CSV
 try:
     col_df = pd.read_csv('Cost_of_Living_Index_by_Country_2024.csv')
-    cost_of_living_map = dict(zip(col_df['Country'].str.strip().str.lower(), col_df['Cost_of_Living_Index']))
-    
-except Exception as e:
-    print(f"Error loading cost of living CSV: {e}")
-    cost_of_living_map = {}
+    cost_of_living_raw = dict(zip(col_df['Country'].str.strip().str.lower(), 
+                                  col_df['Cost_of_Living_Index']))
+except:
+    cost_of_living_raw = {}
 
+USD_TO_INR = 83
 
-USD_TO_INR = 83  # example conversion rate
+def normalize_coli(col_index):
+    if col_index <= 0:
+        return 1.0
+    return col_index / 50  # approximate normalization
 
-def calculate_trip_budget(origin_details, destination_details, days, number_of_people, budget_level, travel_cost=0):
-    origin_country = origin_details.get('country', '') if origin_details else ''
-    destination_country = destination_details.get('country', '') if destination_details else ''
-    
-    is_local_trip = (origin_country.strip().lower() == destination_country.strip().lower())
-    
-    col_dest = get_cost_of_living(destination_details, cost_of_living_map)
-    
-    # Lower base daily cost for local and international trips to keep budgets realistic
-    base_daily_cost_usd = 15 if is_local_trip else 40
-    
-    # Normalize cost of living index - scale down by 100 and cap at 1.5 to avoid runaway values
-    normalized_col_dest = min(col_dest / 100, 1.5)
-    
-    budget_multipliers = {'low': 0.5, 'mid': 1.0, 'high': 1.3}
-    travel_cost_multiplier = {'low': 0.8, 'mid': 1.0, 'high': 1.3}
+def haversine_distance(lat1, lon1, lat2, lon2):
+    R = 6371  # Earth radius in kilometers
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
 
-    tier_multiplier = budget_multipliers.get(budget_level.lower(), 1.0)
-    travel_multiplier = travel_cost_multiplier.get(budget_level.lower(), 1.0)
+def get_lat_lon(place):
+    try:
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {"q": place, "format": "json", "limit": 1}
+        headers = {"User-Agent": "TripPlannerApp/1.0"}
+        response = requests.get(url, params=params, headers=headers)
+        response.raise_for_status()
+        results = response.json()
+        if results:
+            return float(results[0]["lat"]), float(results[0]["lon"])
+    except Exception as e:
+        print(f"Error getting lat/lon for {place}: {e}")
+    return None, None
 
-    # Calculate travel cost using lat/lon distance if available
-    if origin_details and destination_details:
-        distance = haversine_distance(origin_details['lat'], origin_details['lon'],
-                                      destination_details['lat'], destination_details['lon'])
-        travel_cost = distance * 10  # example INR/km rate
+def calculate_trip_budget(origin_country, destination_country,
+                          days, people, budget_level):
+    origin = origin_country.strip().lower()
+    destination = destination_country.strip().lower()
+
+    lat1, lon1 = get_lat_lon(origin_country)
+    lat2, lon2 = get_lat_lon(destination_country)
+
+    if lat1 is not None and lat2 is not None:
+        distance = haversine_distance(lat1, lon1, lat2, lon2)
     else:
-        travel_cost = travel_cost  # fallback
-    
-    # Calculate base daily cost in INR applying normalized cost of living
-    base_cost_inr = base_daily_cost_usd * USD_TO_INR * normalized_col_dest
+        distance = 0
 
-    daily_total_inr = base_cost_inr * days * number_of_people * tier_multiplier
+    # Calculate travel cost using distance and example cost per km (in INR)
+    per_km_inr = 10
+    travel_cost_usd = (distance * per_km_inr) / USD_TO_INR
 
-    # Add travel cost in INR directly
-    total_budget_inr = daily_total_inr + (travel_cost * travel_multiplier)
+    raw_coli = cost_of_living_raw.get(destination, 50)
+    coli_factor = normalize_coli(raw_coli)
+    is_local = (origin == destination)
 
-    # Debug prints for tracing values
-    print(f"Base daily USD cost: {base_daily_cost_usd}")
-    print(f"Cost of living index (raw): {col_dest}")
-    print(f"Cost of living index (normalized): {normalized_col_dest}")
-    print(f"Days: {days}")
-    print(f"Number of people: {number_of_people}")
-    print(f"Budget multiplier: {tier_multiplier}")
-    print(f"Distance (km): {distance if origin_details and destination_details else 'N/A'}")
-    print(f"Calculated travel cost: {travel_cost}")
-    print(f"Final budget INR: {total_budget_inr}")
-    
-    print(f"USDTOINR = {USD_TO_INR}")
-    print(f"Cost of Living Map keys sample: {list(cost_of_living_map.keys())[:5]}")
-    print(f"Looked up cost of living for India: {cost_of_living_map.get('india')}")
+    if is_local:
+        base_hotel = 15
+        base_food = 10
+        base_transport = 5
+    else:
+        base_hotel = 40
+        base_food = 25
+        base_transport = 15
 
-    return round(total_budget_inr, 2)
+    style_mul = {'low': 0.6, 'mid': 1.0, 'high': 1.6}.get(budget_level.lower(), 1.0)
+
+    hotel_cost = base_hotel * coli_factor * style_mul * days * people
+    food_cost = base_food * coli_factor * style_mul * days * people
+    transport_cost = base_transport * coli_factor * style_mul * days * people
+
+    total_usd = hotel_cost + food_cost + transport_cost + travel_cost_usd
+    total_inr = total_usd * USD_TO_INR
+
+    breakdown = {
+        "hotel_usd": round(hotel_cost, 2),
+        "food_usd": round(food_cost, 2),
+        "transport_usd": round(transport_cost, 2),
+        "travel_cost_usd": round(travel_cost_usd, 2),
+        "total_usd": round(total_usd, 2),
+        "total_inr": round(total_inr, 2),
+        "distance_km": round(distance, 2),
+    }
+
+    return breakdown
 
 
 def get_country_from_destination(destination):
@@ -445,42 +446,6 @@ def get_country_from_destination(destination):
         return None
 
 
-import math
-
-def haversine_distance(lat1, lon1, lat2, lon2):
-    R = 6371  # Earth radius in km
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    delta_phi = math.radians(lat2 - lat1)
-    delta_lambda = math.radians(lon2 - lon1)
-    a = math.sin(delta_phi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2)**2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    distance = R * c
-    return distance
-
-import requests
-
-def get_lat_lon(place):
-    try:
-        url = "https://nominatim.openstreetmap.org/search"
-        params = {
-            "q": place,
-            "format": "json",
-            "limit": 1
-        }
-        headers = {
-            "User-Agent": "TripPlannerApp/1.0 (manukumarhnm@gmail.com)"
-        }
-        response = requests.get(url, params=params, headers=headers)
-        response.raise_for_status()
-        results = response.json()
-        if results:
-            lat = float(results[0]["lat"])
-            lon = float(results[0]["lon"])
-            return lat, lon
-        return None, None
-    except Exception as e:
-        print(f"Error fetching lat/lon for {place}: {e}")
-        return None, None
 
 # Routes
 @app.route('/')
@@ -568,7 +533,6 @@ def search_places():
             city_name = address.get('city') or address.get('town') or address.get('village')
 
             weather = get_weather(city_name) if city_name else None
-            budget = get_dynamic_budget_estimate(city_name) if city_name else None
             image_url = get_destination_image(city_name) if city_name else None
             if not image_url:
                 image_url = f'https://via.placeholder.com/800x600/4A90E2/FFFFFF?text={name[:20]}'
@@ -582,7 +546,6 @@ def search_places():
                 'weather_desc': weather['description'] if weather else None,
                 'weather_icon': f"http://openweathermap.org/img/wn/{weather['icon']}@2x.png" if weather else None,
                 'image': image_url,
-                'approx_cost_per_day': budget or 100,
                 'season': 'Year-round',
                 'why_now': f'Current: {weather["description"]}' if weather else None
             })
@@ -704,7 +667,6 @@ def create_trip():
         end_date = request.form['end_date']
         travelers_count = int(request.form['travelers_count'])
         budget_level = request.form.get('budget_level', 'mid')
-        travel_cost = 0  # or get from form if applicable
 
         # Calculate days of trip
         try:
@@ -722,14 +684,17 @@ def create_trip():
         origin_details = get_place_details(origin)
         destination_details = get_place_details(destination)
 
+        # Ensure country strings are passed, not dicts
+        origin_country = origin_details.get('country', '') if origin_details else ''
+        destination_country = destination_details.get('country', '') if destination_details else ''
+
         # Calculate trip budget in INR using updated function
         budget = calculate_trip_budget(
-            origin_details,
-            destination_details,
+            origin_country,
+            destination_country,
             days,
             travelers_count,
-            budget_level,
-            travel_cost
+            budget_level
         )
 
         new_trip = Trip(
@@ -738,7 +703,7 @@ def create_trip():
             destination=destination,
             start_date=start_date,
             end_date=end_date,
-            budget=budget,
+            budget=budget['total_inr'],
             budget_level=budget_level,
             travelers_count=travelers_count,
             user_id=current_user.id
@@ -747,7 +712,7 @@ def create_trip():
         db.session.add(new_trip)
         db.session.commit()
 
-        flash(f'Trip "{title}" created successfully with budget {budget} INR!', 'success')
+        flash(f'Trip "{title}" created successfully with budget {budget["total_inr"]} INR!', 'success')
         return redirect(url_for('view_trips'))
 
     # GET request handling
@@ -784,50 +749,62 @@ def trip_details(trip_id):
 @login_required
 def edit_trip(trip_id):
     trip = Trip.query.get_or_404(trip_id)
+
     if request.method == 'POST':
-        destination = request.form.get('destination')
-        start_date = request.form.get('start_date')
-        end_date = request.form.get('end_date')
-        travelers_count = int(request.form.get('travelers_count', 1))
+        # Extract form data
+        title = request.form['title']
+        origin = request.form['origin']
+        destination = request.form['destination']
+        start_date = request.form['start_date']
+        end_date = request.form['end_date']
+        travelers_count = int(request.form['travelers_count'])
         budget_level = request.form.get('budget_level', 'mid')
 
-        origin_country = current_user.country if hasattr(current_user, 'country') else 'india'
-        destination_country = get_country_from_destination(destination) or 'india'
+        # Calculate days between start and end dates
+        try:
+            start = datetime.strptime(start_date, '%Y-%m-%d')
+            end = datetime.strptime(end_date, '%Y-%m-%d')
+            days = (end - start).days
+            if days <= 0:
+                flash('End date must be after start date.', 'danger')
+                return render_template('edit_trip.html', trip=trip)
+        except ValueError:
+            flash('Invalid date format.', 'danger')
+            return render_template('edit_trip.html', trip=trip)
 
-        start = datetime.strptime(start_date, '%Y-%m-%d')
-        end = datetime.strptime(end_date, '%Y-%m-%d')
-        days = (end - start).days
-        if days <= 0:
-            flash("End date must be after start date")
-            return redirect(url_for('edit_trip', trip_id=trip_id))
+        # Get place details
+        origin_details = get_place_details(origin)
+        destination_details = get_place_details(destination)
 
-        travel_cost = 0
+        # Extract country strings to pass to budget calculation
+        origin_country = origin_details.get('country', '') if origin_details else ''
+        destination_country = destination_details.get('country', '') if destination_details else ''
 
-        # Convert origin and destination country strings to place detail dicts
-        origin_details = get_place_details(origin_country)
-        destination_details = get_place_details(destination_country)
-
-        # Call calculate_trip_budget with place details dicts
+        # Calculate budget
         budget = calculate_trip_budget(
-            origin_details,
-            destination_details,
+            origin_country,
+            destination_country,
             days,
             travelers_count,
-            budget_level,
-            travel_cost
+            budget_level
         )
 
+        # Update trip details and budget (store total_inr only)
+        trip.title = title
+        trip.origin = origin
         trip.destination = destination
         trip.start_date = start_date
         trip.end_date = end_date
         trip.travelers_count = travelers_count
-        trip.budget = budget
         trip.budget_level = budget_level
+        trip.budget = budget['total_inr']
 
         db.session.commit()
-        flash("Trip updated successfully")
+
+        flash(f'Trip "{title}" updated successfully with budget {budget["total_inr"]} INR!', 'success')
         return redirect(url_for('view_trips'))
 
+    # For GET request, render edit form
     return render_template('edit_trip.html', trip=trip)
 
 # Delete trip route
