@@ -112,14 +112,13 @@
 
                        
                         <!-- Budget Level -->
-                            <div class="form-group">
-                            <label for="budget_level">Select your budget type:</label><br/>
-                            <input type="radio" id="budget_low" name="budget_level" value="low" checked> 
-                            <label for="budget_low">Low</label><br/>
-                            <input type="radio" id="budget_mid" name="budget_level" value="mid"> 
-                            <label for="budget_mid">Mid</label><br/>
-                            <input type="radio" id="budget_high" name="budget_level" value="high"> 
-                            <label for="budget_high">High</label><br/>
+                        <div class="form-group">
+                            <label for="budget_level">Budget Level:</label>
+                            <select id="budget_level" name="budget_level" class="form-control" required>
+                                <option value="low" {% if trip.budget_level == 'low' %}selected{% endif %}>Low</option>
+                                <option value="mid" {% if trip.budget_level == 'mid' %}selected{% endif %}>Mid</option>
+                                <option value="high" {% if trip.budget_level == 'high' %}selected{% endif %}>High</option>
+                            </select>
                         </div>
 
                         <!-- Budget Estimate Card -->
@@ -160,6 +159,13 @@
 
                         <!-- Hidden Budget Field -->
                         <input type="hidden" id="budget" name="budget" value="{{ trip.budget }}">
+                        <!-- Add these hidden fields in your form -->
+                        <input type="hidden" id="origin-lat" name="origin_lat" value="0">
+                        <input type="hidden" id="origin-lon" name="origin_lon" value="0">
+                        <input type="hidden" id="destination-lat" name="destination_lat" value="0">
+                        <input type="hidden" id="destination-lon" name="destination_lon" value="0">
+                        <input type="hidden" id="api-calculated-budget" name="api_budget" value="0">
+
 
                         <!-- Action Buttons -->
                         <div class="d-grid gap-2 mt-4">
@@ -202,11 +208,12 @@ function calculateBudget() {
     const startDate = document.getElementById('start_date').value;
     const endDate = document.getElementById('end_date').value;
     const travelers = document.getElementById('travelers_count').value;
-    
+    const budgetLevel = document.getElementById('budget_level').value;
+
     if (destination && startDate && endDate && travelers) {
-        // Show loading
         document.getElementById('budget-loading').style.display = 'block';
-        
+        document.getElementById('budget-estimate').style.display = 'none';
+
         fetch('/api/calculate-budget', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -214,21 +221,38 @@ function calculateBudget() {
                 destination: destination,
                 start_date: startDate,
                 end_date: endDate,
-                travelers_count: travelers
+                travelers_count: travelers,
+                budget_level: budgetLevel
             })
         })
         .then(response => response.json())
         .then(data => {
-            // Hide loading
             document.getElementById('budget-loading').style.display = 'none';
-            
-            if (data.total) {
-                document.getElementById('total-cost').textContent = data.total.toLocaleString();
-                document.getElementById('per-day-cost').textContent = data.per_day.toLocaleString();
-                document.getElementById('duration-days').textContent = data.duration;
-                
-                // Update hidden budget field
-                document.getElementById('budget').value = data.total;
+
+            if (data.total_inr) {
+                document.getElementById('budget-estimate').style.display = 'block';
+                document.getElementById('total-cost').textContent = data.total_inr.toLocaleString();
+
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                const duration = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+                const perDayCost = duration > 0 ? data.total_inr / duration : data.total_inr;
+
+                document.getElementById('per-day-cost').textContent = perDayCost.toFixed(2);
+                document.getElementById('duration-days').textContent = duration || 1;
+
+                document.getElementById('budget').value = data.total_inr;
+                document.getElementById('api-calculated-budget').value = data.total_inr;
+    
+                // Store coordinates from API
+                if (data.origin_lat && data.origin_lon) {
+                    document.getElementById('origin-lat').value = data.origin_lat;
+                    document.getElementById('origin-lon').value = data.origin_lon;
+                }
+                if (data.destination_lat && data.destination_lon) {
+                    document.getElementById('destination-lat').value = data.destination_lat;
+                    document.getElementById('destination-lon').value = data.destination_lon;
+                }
             }
         })
         .catch(err => {
@@ -238,6 +262,19 @@ function calculateBudget() {
     }
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('destination-input').addEventListener('input', calculateBudget);
+    document.getElementById('start_date').addEventListener('change', function() {
+        document.getElementById('end_date').setAttribute('min', this.value);
+        calculateBudget();
+    });
+    document.getElementById('end_date').addEventListener('change', calculateBudget);
+    document.getElementById('travelers_count').addEventListener('input', calculateBudget);
+    document.getElementById('budget_level').addEventListener('change', calculateBudget);
+
+    // Trigger calculation initially on page load to populate budget data
+    calculateBudget();
+});
 
 //<!-- Autocomplete Script -->
   document.addEventListener('DOMContentLoaded', function() {
@@ -316,6 +353,10 @@ document.getElementById('start_date').addEventListener('change', function() {
 });
 document.getElementById('end_date').addEventListener('change', calculateBudget);
 document.getElementById('travelers_count').addEventListener('input', calculateBudget);
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('budget_level').addEventListener('change', calculateBudget);
+});
+
 </script>
 
 <style>

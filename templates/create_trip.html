@@ -126,6 +126,14 @@
                                    required>
                         </div>
                         
+                        <div class="form-group">
+                        <label for="budget_level">Budget Level:</label>
+                        <select id="budget_level" name="budget_level" class="form-control" required>
+                            <option value="low">Low</option>
+                            <option value="mid" selected>Mid</option>
+                            <option value="high">High</option>
+                        </select>
+                        </div>
 
                         <!-- Budget Estimate Card -->
                         <div class="alert alert-light border" id="budget-estimate" style="display: none;">
@@ -156,14 +164,7 @@
                         </div>
 
 
-                        <div class="form-group">
-                        <label for="budget_level">Budget Level:</label>
-                        <select id="budget_level" name="budget_level" class="form-control" required>
-                            <option value="low">Low</option>
-                            <option value="mid" selected>Mid</option>
-                            <option value="high">High</option>
-                        </select>
-                        </div>
+                        
 
                         <!-- Loading Indicator -->
                         <div id="budget-loading" class="text-center" style="display: none;">
@@ -175,6 +176,12 @@
 
                         <!-- Hidden Budget Field -->
                         <input type="hidden" id="budget" name="budget" value="0">
+                        <input type="hidden" id="origin-lat" name="origin_lat" value="0">
+                        <input type="hidden" id="origin-lon" name="origin_lon" value="0">
+                        <input type="hidden" id="destination-lat" name="destination_lat" value="0">
+                        <input type="hidden" id="destination-lon" name="destination_lon" value="0">
+                        <input type="hidden" id="api-calculated-budget" name="api_budget" value="0">
+
 
                         <!-- Action Buttons -->
                         <div class="d-grid gap-2 mt-4">
@@ -237,26 +244,56 @@ function calculateBudget() {
                 destination: destination,
                 start_date: startDate,
                 end_date: endDate,
-                travelers_count: travelers
+                travelers_count: travelers,
+                budget_level: document.getElementById('budget_level').value
             })
         })
         .then(response => response.json())
         .then(data => {
-            // Hide loading
-            document.getElementById('budget-loading').style.display = 'none';
+            // DEBUG: Log the request parameters
+            console.log('=== FRONTEND BUDGET CALCULATION ===');
+            console.log('Destination:', document.getElementById('destination-input').value);
+            console.log('Start Date:', document.getElementById('start_date').value);
+            console.log('End Date:', document.getElementById('end_date').value);
+            console.log('Travelers Count:', document.getElementById('travelers_count').value);
+            console.log('Budget Level:', document.getElementById('budget_level').value);
             
-            if (data.total) {
+            // DEBUG: Log API response
+            console.log('API Response - Total INR:', data.total_inr);
+            console.log('API Response - Total USD:', data.total_usd);
+            console.log('Full API Response:', data);
+            console.log('================================');
+            
+            document.getElementById('budget-loading').style.display = 'none';
+
+            if (data.total_inr) {
                 document.getElementById('budget-estimate').style.display = 'block';
-                document.getElementById('total-cost').textContent = data.total.toLocaleString();
-                document.getElementById('per-day-cost').textContent = data.per_day.toLocaleString();
-                document.getElementById('duration-days').textContent = data.duration;
-                
-                // Set hidden budget field
-                document.getElementById('budget').value = data.total;
+                document.getElementById('total-cost').textContent = data.total_inr.toLocaleString();
+
+                const startDate = new Date(document.getElementById('start_date').value);
+                const endDate = new Date(document.getElementById('end_date').value);
+                const duration = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+                const perDayCost = duration > 0 ? (data.total_inr / duration) : data.total_inr;
+
+                document.getElementById('per-day-cost').textContent = perDayCost.toFixed(2);
+                document.getElementById('duration-days').textContent = duration || 1;
+
+                document.getElementById('budget').value = data.total_inr;
+                document.getElementById('api-calculated-budget').value = data.total_inr;
+
+                // Store lat/lon from API to hidden inputs
+                if (data.origin_lat && data.origin_lon) {
+                    document.getElementById('origin-lat').value = data.origin_lat;
+                    document.getElementById('origin-lon').value = data.origin_lon;
+                }
+                if (data.destination_lat && data.destination_lon) {
+                    document.getElementById('destination-lat').value = data.destination_lat;
+                    document.getElementById('destination-lon').value = data.destination_lon;
+                }
             }
         })
-        .catch(err => {
-            console.error('Error:', err);
+        .catch(error => {
+            console.error('Error fetching budget:', error);
             document.getElementById('budget-loading').style.display = 'none';
         });
     }
@@ -336,8 +373,17 @@ function calculateBudget() {
   });
 
 
+function debounce(func, wait) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(this, args), wait);
+  };
+}
+const calculateBudgetDebounced = debounce(calculateBudget, 300);
+
 // Add event listeners
-document.getElementById('destination-input').addEventListener('blur', calculateBudget);
+document.getElementById('destination-input').addEventListener('input', calculateBudget);
 document.getElementById('start_date').addEventListener('change', function() {
     const endDateInput = document.getElementById('end_date');
     endDateInput.setAttribute('min', this.value);
@@ -345,6 +391,8 @@ document.getElementById('start_date').addEventListener('change', function() {
 });
 document.getElementById('end_date').addEventListener('change', calculateBudget);
 document.getElementById('travelers_count').addEventListener('input', calculateBudget);
+document.getElementById('budget_level').addEventListener('change', calculateBudget);
+
 </script>
 
 <style>
