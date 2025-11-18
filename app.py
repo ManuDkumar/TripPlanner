@@ -90,6 +90,23 @@ class Trip(db.Model):
             return 0
         except:
             return 0
+        
+
+
+from datetime import datetime
+
+class Feedback(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    trip_id = db.Column(db.Integer, db.ForeignKey('trip.id'), nullable=False)
+    rating = db.Column(db.Integer, nullable=False)  # 1 to 5 stars
+    comment = db.Column(db.Text, nullable=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('feedbacks', lazy=True))
+    trip = db.relationship('Trip', backref=db.backref('feedbacks', lazy=True))
+
+
 
 
 def generate_trip_suggestions(preferences):
@@ -1164,6 +1181,60 @@ def reset_password(token):
         return redirect(url_for('login'))
     return render_template('reset_password.html', token=token)
     
+
+@app.route('/api/feedback', methods=['POST'])
+@login_required
+def submit_feedback():
+    data = request.get_json()
+    trip_id = data.get('trip_id')
+    rating = data.get('rating')
+    comment = data.get('comment', '')
+
+    if not trip_id or not rating:
+        return jsonify({'error': 'Missing trip_id or rating'}), 400
+
+    trip = Trip.query.get(trip_id)
+    if not trip or trip.user_id != current_user.id:
+        return jsonify({'error': 'Trip not found or unauthorized'}), 404
+
+    feedback = Feedback(user_id=current_user.id, trip_id=trip_id, rating=rating, comment=comment)
+    db.session.add(feedback)
+    db.session.commit()
+    return jsonify({'message': 'Feedback submitted successfully'})
+
+
+from flask_login import current_user  # Add this import at top if not already present
+
+@app.route('/api/feedback/<int:trip_id>', methods=['GET'])
+def get_feedback(trip_id):
+    feedbacks = Feedback.query.filter_by(trip_id=trip_id).order_by(Feedback.timestamp.desc()).all()
+    results = [{
+        'id': f.id,  # Important to include feedback ID for deletion
+        'user': f"{f.user.username}",
+        'rating': f.rating,
+        'comment': f.comment,
+        'timestamp': f.timestamp.isoformat(),
+        'is_current_user': current_user.is_authenticated and f.user_id == current_user.id
+    } for f in feedbacks]
+
+    avg_rating = db.session.query(db.func.avg(Feedback.rating)).filter_by(trip_id=trip_id).scalar()
+    return jsonify({'feedbacks': results, 'average_rating': round(avg_rating, 2) if avg_rating else None})
+
+
+@app.route('/api/feedback/<int:feedback_id>', methods=['DELETE'])
+@login_required
+def delete_feedback(feedback_id):
+    feedback = Feedback.query.get(feedback_id)
+    if not feedback:
+        return jsonify({'error': 'Feedback not found'}), 404
+    if feedback.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    db.session.delete(feedback)
+    db.session.commit()
+    return jsonify({'message': 'Feedback deleted successfully'})
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()

@@ -221,6 +221,7 @@
             </div>
         </div>
 
+        
         <!-- Sidebar -->
         <div class="col-md-4">
             <!-- Quick Info -->
@@ -236,7 +237,43 @@
                     <p class="mb-0"><small class="text-muted">Trip Type</small><br><span class="badge bg-info">{{ breakdown.trip_type }}</span></p>
                 </div>
             </div>
-        </div>
+
+
+            <!-- User Feedback Form -->
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">Give Your Feedback</h5>
+                </div>
+                <div class="card-body">
+                    <label for="rating">Rating:</label>
+                    <select id="rating" class="form-select mb-2" aria-label="Rating">
+                    <option value="1">1 star</option>
+                    <option value="2">2 stars</option>
+                    <option value="3" selected>3 stars</option>
+                    <option value="4">4 stars</option>
+                    <option value="5">5 stars</option>
+                    </select>
+                    
+                    <label for="comment">Comment:</label>
+                    <textarea id="comment" class="form-control mb-2" rows="3" placeholder="Write your feedback..."></textarea>
+                    
+                    <button class="btn btn-primary" onclick="submitFeedback('{{ trip.id }}')">Submit Feedback</button>
+                </div>
+            </div>
+
+            <!-- Feedback Display Section -->
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">User Feedback & Ratings</h5>
+                    <div id="average-rating" class="fs-4 mt-1"></div>
+                </div>
+                <div class="card-body" id="feedback-list">
+                    <!-- Feedback comments will be dynamically inserted here -->
+                    <p>Loading feedback...</p>
+                </div>
+            </div>
+
+        </div>     
     </div>
 </div>
 
@@ -306,6 +343,81 @@ function generateItinerary() {
         document.getElementById('ai-loading').style.display = 'none';
     });
 }
+
+async function submitFeedback(tripId) {
+  const rating = document.getElementById('rating').value;
+  const comment = document.getElementById('comment').value;
+
+  const response = await fetch('/api/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trip_id: tripId, rating: parseInt(rating), comment: comment })
+  });
+
+  const data = await response.json();
+  if (response.ok) {
+    alert('Thank you for your feedback!');
+    document.getElementById('comment').value = '';
+    // Optionally reload or update feedback section here
+  } else {
+    alert('Error: ' + data.error);
+  }
+}
+
+
+async function loadFeedback(tripId) {
+  const response = await fetch(`/api/feedback/${tripId}`);
+  const data = await response.json();
+
+  const feedbackList = document.getElementById('feedback-list');
+  const averageRating = document.getElementById('average-rating');
+
+  if (!response.ok) {
+    feedbackList.innerHTML = `<p class="text-danger">Failed to load feedback.</p>`;
+    averageRating.textContent = '';
+    return;
+  }
+
+  if (!data.feedbacks.length) {
+    feedbackList.innerHTML = '<p>No feedback available yet.</p>';
+    averageRating.textContent = '';
+    return;
+  }
+
+  // Display average rating
+  averageRating.textContent = `Average Rating: ${data.average_rating} ⭐`;
+
+  // Build HTML for feedback comments including delete button for current user
+  feedbackList.innerHTML = data.feedbacks.map(f => `
+    <div class="border-bottom mb-3 pb-2">
+      <strong>${f.user}</strong> - <span>${f.rating} ⭐</span> <br/>
+      <p>${f.comment || ''}</p>
+      <small class="text-muted">${new Date(f.timestamp).toLocaleString()}</small>
+      ${f.is_current_user ? `<button class="btn btn-sm btn-danger ms-2" onclick="deleteFeedback(${f.id})">Delete</button>` : ''}
+    </div>
+  `).join('');
+}
+
+async function deleteFeedback(feedbackId) {
+  if (!confirm('Are you sure you want to delete this feedback?')) return;
+
+  const response = await fetch(`/api/feedback/${feedbackId}`, {
+    method: 'DELETE',
+  });
+
+  const data = await response.json();
+  if (response.ok) {
+    alert('Feedback deleted');
+    loadFeedback('{{ trip.id }}');  // Refresh feedback list
+  } else {
+    alert('Error: ' + data.error);
+  }
+}
+
+// Call loadFeedback on page load
+document.addEventListener('DOMContentLoaded', () => {
+  loadFeedback('{{ trip.id }}');
+});
 
 
 </script>
