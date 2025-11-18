@@ -72,6 +72,7 @@ class Trip(db.Model):
     travel_cost_usd = db.Column(db.Float, default=0)     # Flight/Train cost in USD
     distance_km = db.Column(db.Float, default=0)         # Distance between origin-destination
     is_local = db.Column(db.Boolean, default=False)      # Domestic (True) or International (False)
+    itinerary = db.Column(db.Text, nullable=True)  # To store AI-generated itinerary JSON or text
 
     def calculate_duration(self):
         try:
@@ -97,7 +98,7 @@ def generate_trip_suggestions(preferences):
         
         prompt = f"""As a travel expert, suggest 5 amazing travel destinations based on these preferences:
         
-Budget: {preferences.get('budget', 'moderate')}
+Budget: ₹{preferences.get('budget', 'moderate')}
 Travel Style: {preferences.get('style', 'adventure')}
 Duration: {preferences.get('duration', '1 week')}
 Interests: {preferences.get('interests', 'culture, food, nature')}
@@ -106,7 +107,7 @@ For each destination, provide:
 1. Destination name
 2. Why it's perfect for these preferences (2-3 sentences)
 3. Best time to visit
-4. Estimated daily budget in USD
+4. Estimated daily budget in ₹
 
 Format as JSON array with keys: name, reason, best_time, daily_budget"""
 
@@ -130,7 +131,7 @@ For each day:
 - Day number
 - Morning, afternoon, and evening activities
 - Recommended restaurants
-- Estimated daily cost in USD
+- Estimated daily cost in ₹
 - Travel tips specific to that day
 
 Format as structured day-by-day plan."""
@@ -151,7 +152,7 @@ def generate_travel_tips(destination, trip_details):
 
 Trip details:
 - Duration: {trip_details.get('duration', 'N/A')} days
-- Budget: ${trip_details.get('budget', 'N/A')}
+- Budget: ₹{trip_details.get('budget', 'N/A')}
 - Travelers: {trip_details.get('travelers', 1)} people
 
 Include:
@@ -192,23 +193,47 @@ def get_ai_suggestions():
         return jsonify({'error': 'Could not generate suggestions'}), 500
 
 
+import logging
+
 @app.route('/api/generate-itinerary', methods=['POST'])
 @login_required
 def get_ai_itinerary():
-    """Generate AI itinerary for a trip"""
+    """Generate AI itinerary for a trip and save it persistently with better error handling"""
     data = request.get_json()
-    
-    itinerary = generate_itinerary(
-        data.get('destination'),
-        data.get('duration', 3),
-        data.get('interests', 'sightseeing, food')
-    )
-    
-    if itinerary:
-        return jsonify({'itinerary': itinerary})
-    else:
-        return jsonify({'error': 'Could not generate itinerary'}), 500
+    logging.info(f"Received generate-itinerary request data: {data}")
 
+    destination = data.get('destination')
+    duration = data.get('duration', 3)
+    interests = data.get('interests', 'sightseeing, food')
+    trip_id = data.get('trip_id')  # Must be provided by frontend
+
+    if not destination or not trip_id:
+        logging.error("Missing required fields: destination or trip_id")
+        return jsonify({'error': 'Missing required fields: destination or trip_id'}), 400
+
+    try:
+        itinerary = generate_itinerary(destination, duration, interests)
+        logging.info(f"Received itinerary from generate_itinerary: {itinerary}")
+    except Exception as e:
+        logging.error(f"Error generating itinerary: {e}")
+        return jsonify({'error': 'Failed to generate itinerary due to internal error'}), 500
+
+    if itinerary:
+        trip = Trip.query.get(trip_id)
+        if trip and trip.user_id == current_user.id:
+            trip.itinerary = itinerary
+            try:
+                db.session.commit()
+                return jsonify({'itinerary': itinerary})
+            except Exception as e:
+                logging.error(f"DB commit failed: {e}")
+                return jsonify({'error': 'Failed to save itinerary'}), 500
+        else:
+            logging.warning(f"Unauthorized access attempt or trip not found: trip_id={trip_id}, user_id={current_user.id}")
+            return jsonify({'error': 'Trip not found or unauthorized'}), 404
+    else:
+        logging.warning("Empty itinerary received from generate_itinerary function")
+        return jsonify({'error': 'Could not generate itinerary'}), 500
 
 @app.route('/api/travel-tips/<destination>', methods=['GET'])
 @login_required
@@ -887,6 +912,19 @@ def create_trip():
     # Handle GET request
     destination = request.args.get('destination', '')
     return render_template('create_trip.html', destination=destination)
+
+
+@app.route('/get_best_month/<destination>')
+def get_best_month(destination):
+    try:
+        model = genai.GenerativeModel('models/gemini-flash-latest')  # Replace with your chosen model
+        prompt = f"What is the best month to visit {destination}? Answer in 1 sentence only."
+        response = model.generate_content(prompt)
+        best_month = response.text if response else "Unavailable"
+        return {'best_month': best_month}
+    except Exception as e:
+        print(f"Error generating best month: {e}")
+        return {'best_month': 'Unable to determine best month at the moment.'}
 
 @app.route('/trips')
 @login_required

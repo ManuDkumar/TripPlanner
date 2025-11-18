@@ -7,9 +7,11 @@
 
 
 {% block title %}{{ trip.title }} - Trip Details{% endblock %}
-
-
 {% block content %}
+
+<!-- <p>Debug: trip id = {{ trip.id }}</p>
+<p>Debug: destination = {{ trip.destination }}</p> -->
+
 
 <div class="container mt-4">
     <div class="row">
@@ -53,6 +55,31 @@
                         <span class="badge bg-info">{{ breakdown.trip_type }} Trip</span>
                         <span class="badge bg-secondary">{{ trip.distance_km }} km</span>
                     </div>
+
+                    {% if trip.itinerary %}
+                    <div class="card mb-4">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0" id="ai-title">AI-Generated Itinerary</h5>
+                        </div>
+
+                        <div id="ai-content" class="card-body" 
+                        style="white-space: pre-wrap;
+                            max-height: 400px; 
+                            overflow-y: auto; 
+                            background-color: #f9f9f9; 
+                            border: 1px solid #ccc; 
+                            border-radius: 5px; 
+                            color: #333; 
+                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                            padding: 15px;">
+                            
+                            {{ trip.itinerary or '' }}
+                        </div>
+
+                    </div>
+                    {% endif %}
+
+
                 </div>
             </div>
 
@@ -146,6 +173,7 @@
                 </div>
             </div>
 
+            
             <!-- ✅ AI Features Card (WITH YOUR EXISTING SCRIPTS) -->
             <div class="card mb-4">
                 <div class="card-header bg-warning text-dark">
@@ -176,6 +204,8 @@
                     </div>
                 </div>
             </div>
+
+            
 
             <!-- Action Buttons -->
             <div class="mb-4">
@@ -212,43 +242,11 @@
 
 <!-- ✅ KEEP YOUR EXISTING SCRIPTS - FULLY PRESERVED -->
 <script>
-function generateItinerary() {
-    const destination = '{{ trip.destination }}';
-    const duration = '{{ trip.calculate_duration() }}';
-    
-    // Show loading
-    document.getElementById('ai-loading').style.display = 'block';
-    document.getElementById('ai-results').style.display = 'none';
-    
-    fetch('/api/generate-itinerary', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            destination: destination,
-            duration: duration,
-            interests: 'sightseeing, culture, food'
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        // Hide loading, show results
-        document.getElementById('ai-loading').style.display = 'none';
-        document.getElementById('ai-results').style.display = 'block';
-        document.getElementById('ai-content').textContent = data.itinerary;
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        document.getElementById('ai-loading').style.display = 'none';
-        alert('Failed to generate itinerary. Please try again.');
-    });
-}
 
 function getTravelTips() {
-    const destination = '{{ trip.destination }}';
+    const destination = '{{ trip.destination | tojson }}';
     const duration = '{{ trip.calculate_duration() }}';
-    const budget = '{{ trip.budget }}';
+    const budget = '₹{{ trip.budget }}';
     const travelers = '{{ trip.travelers_count }}';
     
     // Show loading
@@ -261,6 +259,9 @@ function getTravelTips() {
         // Hide loading, show results
         document.getElementById('ai-loading').style.display = 'none';
         document.getElementById('ai-results').style.display = 'block';
+
+        document.getElementById('ai-title').textContent = "Travel Tips";
+
         document.getElementById('ai-content').textContent = data.tips;
     })
     .catch(error => {
@@ -269,5 +270,44 @@ function getTravelTips() {
         alert('Failed to get travel tips. Please try again.');
     });
 }
+
+function generateItinerary() {
+    const destination = '{{ trip.destination | tojson }}';
+    const duration = '{{ trip.calculate_duration() | tojson }}';
+    const tripId = '{{ trip.id | tojson }}';
+
+    document.getElementById('ai-loading').style.display = 'block';
+    document.getElementById('ai-results').style.display = 'none';
+
+    fetch('/api/generate-itinerary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            destination: destination,
+            duration: duration,
+            interests: 'sightseeing, culture, food',
+            trip_id: tripId
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById('ai-loading').style.display = 'none';
+        document.getElementById('ai-results').style.display = 'block';
+
+        document.getElementById('ai-title').textContent = "AI-Generated Itinerary";
+
+        document.getElementById('ai-content').textContent = data.itinerary || "No itinerary generated.";
+
+        setTimeout(() => location.reload(), 1500);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to generate itinerary');
+        document.getElementById('ai-loading').style.display = 'none';
+    });
+}
+
+
 </script>
+
 {% endblock %}

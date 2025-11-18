@@ -79,6 +79,11 @@
                                 </small>
                             </div>
                         </div>
+                        
+                        <div id="best-month-container" style="margin-top: 10px; font-style: italic; color: #007BFF;">
+                            💡 <span id="best-month-text">Select destination to see best month to visit</span>
+                        </div>
+
 
                         <!-- Dates Row -->
                         <div class="row">
@@ -299,7 +304,6 @@ function calculateBudget() {
     }
 }
 
-//<!-- Add this in your <head> or before closing </body> -->
   // Debounce function to limit API calls while typing
   function debounce(func, wait) {
     let timeout;
@@ -392,6 +396,27 @@ document.getElementById('start_date').addEventListener('change', function() {
 document.getElementById('end_date').addEventListener('change', calculateBudget);
 document.getElementById('travelers_count').addEventListener('input', calculateBudget);
 document.getElementById('budget_level').addEventListener('change', calculateBudget);
+
+
+const destinationInput = document.getElementById('destination-input');
+const bestMonthText = document.getElementById('best-month-text');
+
+destinationInput.addEventListener('change', () => {
+    const destination = destinationInput.value;
+    if (destination) {
+        bestMonthText.textContent = 'Loading best month...';
+        fetch(`/get_best_month/${encodeURIComponent(destination)}`)
+            .then(res => res.json())
+            .then(data => {
+                bestMonthText.textContent = data.best_month;
+            })
+            .catch(() => {
+                bestMonthText.textContent = 'Failed to fetch best month.';
+            });
+    } else {
+        bestMonthText.textContent = 'Select destination to see best month to visit';
+    }
+});
 
 </script>
 
