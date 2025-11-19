@@ -62,6 +62,11 @@
                                        required>
                             </div>
 
+                            <!-- Hidden inputs for origin coordinates -->
+                            <input type="hidden" name="origin_lat" id="origin_lat" value="{{ request.form.origin_lat or '' }}">
+                            <input type="hidden" name="origin_lon" id="origin_lon" value="{{ request.form.origin_lon or '' }}">
+
+
                             <div class="col-md-6 mb-3">
                                 <label for="destination" class="form-label">
                                     <i class="fas fa-map-marker-alt text-danger"></i>
@@ -78,6 +83,11 @@
                                     <i class="fas fa-globe"></i> Any city worldwide
                                 </small>
                             </div>
+
+                            <!-- Hidden inputs for destination coordinates -->
+                            <input type="hidden" name="destination_lat" id="destination_lat" value="{{ request.form.destination_lat or '' }}">
+                            <input type="hidden" name="destination_lon" id="destination_lon" value="{{ request.form.destination_lon or '' }}">
+
                         </div>
                         
                         <div id="best-month-container" style="margin-top: 10px; font-style: italic; color: #007BFF;">
@@ -181,10 +191,6 @@
 
                         <!-- Hidden Budget Field -->
                         <input type="hidden" id="budget" name="budget" value="0">
-                        <input type="hidden" id="origin-lat" name="origin_lat" value="0">
-                        <input type="hidden" id="origin-lon" name="origin_lon" value="0">
-                        <input type="hidden" id="destination-lat" name="destination_lat" value="0">
-                        <input type="hidden" id="destination-lon" name="destination_lon" value="0">
                         <input type="hidden" id="api-calculated-budget" name="api_budget" value="0">
 
 
@@ -272,6 +278,10 @@ function calculateBudget() {
             document.getElementById('budget-loading').style.display = 'none';
 
             if (data.total_inr) {
+                document.getElementById('origin_lat').value = data.origin_lat;
+                document.getElementById('origin_lon').value = data.origin_lon;
+                document.getElementById('destination_lat').value = data.destination_lat;
+                document.getElementById('destination_lon').value = data.destination_lon;
                 document.getElementById('budget-estimate').style.display = 'block';
                 document.getElementById('total-cost').textContent = data.total_inr.toLocaleString();
 

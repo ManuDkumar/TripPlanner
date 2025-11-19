@@ -1,193 +1,144 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
+{% block title %}Home - Trip Planner{% endblock %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trip Planner - Home</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <style>
-        .destination-card {
-            transition: transform 0.3s, box-shadow 0.3s;
-            cursor: pointer;
-        }
+{% block content %}
 
-        .destination-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-        }
+<div class="container mt-5 text-center fade-in">
+    <h1>Welcome to Trip Planner</h1>
+    <p class="lead text-muted">Plan, save, and track your travel adventures efficiently.</p>
+    <p class="text-info">
+        <strong>✨ Browse trending destinations below or create a trip to anywhere in the world!</strong>
+    </p>
 
-        .card-img-top {
-            height: 200px;
-            object-fit: cover;
-        }
-    </style>
-</head>
-
-<body class="bg-light" data-authenticated="{{ is_authenticated|lower }}">
-
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">Trip Planner</a>
-            <div>
-                {% if is_authenticated %}
-                <a class="btn btn-success btn-sm me-2" href="/trips">My Trips</a>
-                <a class="btn btn-outline-warning btn-sm" href="/logout">Logout</a>
-                {% else %}
-                <a class="btn btn-outline-light btn-sm me-2" href="/register">Register</a>
-                <a class="btn btn-outline-light btn-sm" href="/login">Login</a>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
-
-    <div class="container mt-5 text-center">
-        <h1>Welcome to Trip Planner</h1>
-        <p class="lead text-muted">Plan, save, and track your travel adventures efficiently.</p>
-        <p class="text-info">
-            <strong>✨ Browse trending destinations below or create a trip to anywhere in the world!</strong>
-        </p>
-        <a href="/create-trip" class="btn btn-primary mt-3">Create a New Trip</a>
-    </div>
+    <a href="/create-trip" class="btn btn-primary mt-3">
+        <i class="fas fa-plus-circle"></i> Create a New Trip
+    </a>
+</div>
 
 
-    <!-- Trending Destinations with Cards -->
-    <div class="container mt-5">
-        <h2 class="text-center mb-4">Trending Destinations</h2>
+<!-- Trending Destinations -->
+<div class="container mt-5 fade-in">
+    <h2 class="text-center mb-4">Trending Destinations</h2>
 
-        <!-- Loading Spinner -->
-        <div id="loading" class="text-center">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-        </div>
-
-        <!-- Cards Container -->
-        <div class="row" id="trending-container" style="display: none;">
-            <!-- Cards will be inserted here by JavaScript -->
+    <!-- Loading Spinner -->
+    <div id="loading" class="text-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
         </div>
     </div>
 
-    <!-- Search Section -->
-    <div class="container mt-5">
-        <h2 class="text-center mb-4">Search Destinations</h2>
-        <input type="text" id="search-input" class="form-control" placeholder="Search destinations..." />
-        <div class="row mt-3" id="search-results">
-            <!-- Search results will appear here -->
-        </div>
+    <!-- Cards Container -->
+    <div class="row" id="trending-container" style="display: none;">
+        <!-- JS will insert cards -->
     </div>
+</div>
 
-    <script>
-        function selectDestination(placeName) {
-            const isLoggedIn = document.body.getAttribute('data-authenticated') === 'true';
 
-            if (isLoggedIn) {
-                window.location.href = `/create-trip?destination=${encodeURIComponent(placeName)}`;
-            } else {
-                alert('Please login to create a trip with this destination');
-                window.location.href = '/login';
-            }
+<!-- Search Section -->
+<div class="container mt-5 fade-in">
+    <h2 class="text-center mb-4">Search Destinations</h2>
+    <input type="text" id="search-input" class="form-control" placeholder="Search destinations..." />
+    <div class="row mt-3" id="search-results">
+        <!-- JS results -->
+    </div>
+</div>
+
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function selectDestination(placeName) {
+        const isLoggedIn = "{{ is_authenticated }}".toLowerCase() === "true";
+
+        if (isLoggedIn) {
+            window.location.href = `/create-trip?destination=${encodeURIComponent(placeName)}`;
+        } else {
+            alert('Please login to create a trip with this destination');
+            window.location.href = '/login';
         }
-
-        function createDestinationCard(place) {
-    const imageUrl = place.image || 'https://via.placeholder.com/800x600?text=' + place.name;
-    
-    // Weather display with icon
-    let weatherInfo = '';
-    if (place.current_temp) {
-        const weatherIcon = place.weather_icon 
-            ? `<img src="${place.weather_icon}" alt="weather" style="width:30px; height:30px; vertical-align:middle;">` 
-            : '';
-        weatherInfo = `
-            <div class="mb-2">
-                ${weatherIcon}
-                <span class="badge bg-info">${place.current_temp}°C - ${place.weather_type || 'Current'}</span>
-            </div>
-        `;
     }
-    
-    // "Why now" badge or trending indicator
-    const whyNow = place.why_now ? `<p class="text-muted small mb-2"><em>✨ ${place.why_now}</em></p>` : '';
-    
-    // Best for season or weather description
-    const bestFor = place.weather_desc || place.weather || 'Check current conditions';
-    
-    return `
+
+    function createDestinationCard(place) {
+        const imageUrl = place.image || 
+            'https://via.placeholder.com/800x600?text=' + place.name;
+
+        let weatherInfo = '';
+        if (place.current_temp) {
+            const weatherIcon = place.weather_icon 
+                ? `<img src="${place.weather_icon}" style="width:30px;height:30px;">` 
+                : '';
+            weatherInfo = `
+                <div class="mb-2">
+                    ${weatherIcon}
+                    <span class="badge bg-info">${place.current_temp}°C</span>
+                </div>
+            `;
+        }
+
+        const whyNow = place.why_now 
+            ? `<p class="text-muted small"><em>✨ ${place.why_now}</em></p>` 
+            : '';
+
+        return `
         <div class="col-md-4 mb-4">
             <div class="card destination-card h-100 shadow-sm" onclick="selectDestination('${place.name}')">
-                <img src="${imageUrl}" 
-                     class="card-img-top" 
-                     alt="${place.name}"
-                     onerror="this.src='https://via.placeholder.com/800x600/4A90E2/FFFFFF?text=${place.name}'">
+                <img src="${imageUrl}" class="card-img-top" alt="${place.name}">
+                
                 <div class="card-body">
                     <h5 class="card-title">${place.name}</h5>
                     ${weatherInfo}
                     ${whyNow}
-                    <p class="card-text">
-                        <strong>Best for:</strong> ${bestFor}<br>
-                    </p>
-                    <button class="btn btn-primary w-100" onclick="event.stopPropagation(); selectDestination('${place.name}')">
+                    <button class="btn btn-primary w-100" 
+                            onclick="event.stopPropagation(); selectDestination('${place.name}')">
                         Plan Your Trip
                     </button>
                 </div>
             </div>
-        </div>
-        `;
+        </div>`;
     }
 
 
+    // Fetch trending destinations
+    fetch('/api/trending')
+        .then(res => res.json())
+        .then(data => {
+            const container = document.getElementById('trending-container');
+            container.innerHTML = data.map(createDestinationCard).join('');
+            document.getElementById('loading').style.display = 'none';
+            container.style.display = 'flex';
+        });
 
-        // Fetch and display trending places
-        fetch('/api/trending')
-            .then(response => response.json())
-            .then(data => {
-                const container = document.getElementById('trending-container');
-                container.innerHTML = '';
 
-                data.forEach(place => {
-                    container.innerHTML += createDestinationCard(place);
-                });
-
-                // Hide loading, show cards
-                document.getElementById('loading').style.display = 'none';
-                container.style.display = 'flex';
-            })
-            .catch(error => {
-                console.error('Error fetching trending places:', error);
-                document.getElementById('loading').innerHTML = '<p class="text-danger">Failed to load destinations</p>';
-            });
-
-        // Search functionality
-        document.getElementById('search-input').addEventListener('input', function () {
-            const query = this.value;
+    // Search functionality
+    document.getElementById('search-input')
+        .addEventListener('input', function () {
+            const q = this.value;
             const resultsList = document.getElementById('search-results');
 
-            if (query.length < 2) {
-                resultsList.innerHTML = '';
-                return;
-            }
+            if (q.length < 2) return resultsList.innerHTML = '';
 
-            fetch(`/api/search?q=${encodeURIComponent(query)}`)
-                .then(response => response.json())
+            fetch(`/api/search?q=${encodeURIComponent(q)}`)
+                .then(res => res.json())
                 .then(results => {
-                    resultsList.innerHTML = '';
-
-                    if (results.length === 0) {
-                        resultsList.innerHTML = '<div class="col-12"><p class="text-muted">No destinations found</p></div>';
-                        return;
-                    }
-
-                    results.forEach(place => {
-                        resultsList.innerHTML += createDestinationCard(place);
-                    });
-                })
-                .catch(err => {
-                    console.error('Search API error:', err);
-                    resultsList.innerHTML = '<div class="col-12"><p class="text-danger">Search failed</p></div>';
+                    resultsList.innerHTML = results.length
+                        ? results.map(createDestinationCard).join('')
+                        : '<div class="col-12"><p class="text-muted">No results found</p></div>';
                 });
         });
-    </script>
+</script>
 
-</body>
-
-</html>
+<style>
+.destination-card {
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+.destination-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+}
+.card-img-top {
+    height: 200px;
+    object-fit: cover;
+}
+</style>
+{% endblock %}

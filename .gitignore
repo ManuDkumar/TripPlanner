@@ -27,3 +27,5 @@ build/
 *.pyo
 *.pyd
 .Python
+instance/trips_backup.db
+.db

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Trip Map{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+    #map { height: 600px; width: 100%; border-radius: 10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-3"><i class="fas fa-map-marked-alt"></i> My Trip Destinations</h2>
+    <div id="map"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    let destinations = JSON.parse('{{ destinations|safe }}');
+
+    const map = L.map('map').setView([20, 0], 2);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    destinations.forEach(dest => {
+        if (dest.lat && dest.lon) {
+            L.marker([dest.lat, dest.lon])
+                .addTo(map)
+                .bindPopup(`<b>${dest.title}</b>`);
+        }
+    });
+</script>
+{% endblock %}

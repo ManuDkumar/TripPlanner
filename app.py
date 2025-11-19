@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, url_for, jsonify, redirect,flash
 from flask_sqlalchemy import SQLAlchemy
-import os, secrets, requests
+import os, secrets, requests,json,logging,math
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
@@ -9,7 +9,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from flask_migrate import Migrate
 import pandas as pd
-import math
+ 
 
 
 load_dotenv()
@@ -74,6 +74,8 @@ class Trip(db.Model):
     distance_km = db.Column(db.Float, default=0)         # Distance between origin-destination
     is_local = db.Column(db.Boolean, default=False)      # Domestic (True) or International (False)
     itinerary = db.Column(db.Text, nullable=True)  # To store AI-generated itinerary JSON or text
+    latitude = db.Column(db.Float, nullable=True)
+    longitude = db.Column(db.Float, nullable=True)
 
     def calculate_duration(self):
         try:
@@ -94,7 +96,6 @@ class Trip(db.Model):
         
 
 
-from datetime import datetime
 
 class Feedback(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -211,7 +212,6 @@ def get_ai_suggestions():
         return jsonify({'error': 'Could not generate suggestions'}), 500
 
 
-import logging
 
 @app.route('/api/generate-itinerary', methods=['POST'])
 @login_required
@@ -451,6 +451,17 @@ def get_lat_lon(place):
         print(f"Error getting lat/lon for {place}: {e}")
     return None, None
 
+def is_valid_coord(lat, lon):
+    return lat is not None and lon is not None and lat != 0.0 and lon != 0.0
+
+
+def safe_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def calculate_trip_budget(origin_lat, origin_lon, destination_lat, destination_lon,
                          days, people, budget_level, destination_country,origin_country):
     
@@ -467,15 +478,12 @@ def calculate_trip_budget(origin_lat, origin_lon, destination_lat, destination_l
     print(f'  destination_country: {destination_country}')
     
     # Calculate distance
-    if origin_lat is not None and destination_lat is not None:
+    if is_valid_coord(origin_lat, origin_lon) and is_valid_coord(destination_lat, destination_lon):
         distance = haversine_distance(origin_lat, origin_lon, destination_lat, destination_lon)
-        print(f'\nDISTANCE CALCULATION:')
-        print(f'  distance_km: {distance}')
+        print(f'Distance calculated: {distance} km')
     else:
         distance = 0
-        print(f'\nDISTANCE CALCULATION:')
-        print(f'  ❌ ERROR: Lat/Lon values are None! Distance set to 0')
-        print(f'  origin_lat={origin_lat}, destination_lat={destination_lat}')
+        print('Warning: Invalid or missing coordinates; distance set to 0')
 
     
     
@@ -655,6 +663,7 @@ def get_cost_of_living(place_details, cost_of_living_map):
     country_name = place_details['country'].strip().lower()
     return cost_of_living_map.get(country_name, 1.0)
   
+
 
 @app.route('/api/search', methods=['GET'])
 def search_places():
@@ -906,10 +915,10 @@ def create_trip():
             return render_template('create_trip.html', origin=origin, destination=destination, title=title)
 
        # Extract coordinates from form
-        origin_lat = float(request.form.get('origin_lat', 0))
-        origin_lon = float(request.form.get('origin_lon', 0))
-        destination_lat = float(request.form.get('destination_lat', 0))
-        destination_lon = float(request.form.get('destination_lon', 0))
+        origin_lat = safe_float(request.form.get('origin_lat')) or origin_details['lat']
+        origin_lon = safe_float(request.form.get('origin_lon')) or origin_details['lon']
+        destination_lat = safe_float(request.form.get('destination_lat')) or destination_details['lat']
+        destination_lon = safe_float(request.form.get('destination_lon')) or destination_details['lon']
 
 
         # ✅ NEW: Get both countries using the function
@@ -925,18 +934,22 @@ def create_trip():
 
 
        # Pass coordinates to budget calculation
-        budget = calculate_trip_budget(
-            origin_lat,
-            origin_lon,
-            destination_lat,
-            destination_lon,
-            days,
-            travelers_count,
-            budget_level,
-            destination_country,
-            origin_country
-        )
-
+        try:
+            budget = calculate_trip_budget(
+                origin_lat,
+                origin_lon,
+                destination_lat,
+                destination_lon,
+                days,
+                travelers_count,
+                budget_level,
+                destination_country,
+                origin_country
+            )
+        except ValueError as ve:
+            flash(str(ve), 'danger')
+            return render_template('create_trip.html', origin=origin, destination=destination, title=title)
+    
         new_trip = Trip(
             title=title,
             origin=origin,
@@ -947,7 +960,10 @@ def create_trip():
             budget_level=budget_level,
             travelers_count=travelers_count,
             user_id=current_user.id,
-            # ✅ ADD THESE NEW FIELDS:
+            # Coordinates stored here
+            latitude=destination_lat,
+            longitude=destination_lon,
+            # other existing fields...
             hotel_usd=budget.get('hotel_usd', 0),
             food_usd=budget.get('food_usd', 0),
             transport_usd=budget.get('transport_usd', 0),
@@ -978,6 +994,23 @@ def get_best_month(destination):
     except Exception as e:
         print(f"Error generating best month: {e}")
         return {'best_month': 'Unable to determine best month at the moment.'}
+
+
+@app.route('/map')
+@login_required
+def map_view():
+    trips = Trip.query.filter_by(user_id=current_user.id).all()
+    destinations = [
+        {
+            'title': trip.title,
+            'lat': trip.latitude,
+            'lon': trip.longitude,
+            'id': trip.id
+        }
+        for trip in trips if trip.latitude and trip.longitude
+    ]
+    is_authenticated = current_user.is_authenticated
+    return render_template('map.html', destinations=json.dumps(destinations), is_authenticated=is_authenticated)
 
 @app.route('/trips')
 @login_required
@@ -1119,10 +1152,10 @@ def edit_trip(trip_id):
             return render_template('edit_trip.html', trip=trip)
 
         # Extract coordinates from form (passed by frontend)
-        origin_lat = float(request.form.get('origin_lat', 0))
-        origin_lon = float(request.form.get('origin_lon', 0))
-        destination_lat = float(request.form.get('destination_lat', 0))
-        destination_lon = float(request.form.get('destination_lon', 0))
+        origin_lat = safe_float(request.form.get('origin_lat')) or origin_details['lat']
+        origin_lon = safe_float(request.form.get('origin_lon')) or origin_details['lon']
+        destination_lat = safe_float(request.form.get('destination_lat')) or destination_details['lat']
+        destination_lon = safe_float(request.form.get('destination_lon')) or destination_details['lon']
 
         # ✅ NEW: Get both countries
         origin_country = get_country_from_destination(origin)
@@ -1136,17 +1169,21 @@ def edit_trip(trip_id):
         print('=======================')
 
         # Pass coordinates to budget calculation
-        budget = calculate_trip_budget(
-            origin_lat,
-            origin_lon,
-            destination_lat,
-            destination_lon,
-            days,
-            travelers_count,
-            budget_level,
-            destination_country,
-            origin_country
-        )
+        try:
+            budget = calculate_trip_budget(
+                origin_lat,
+                origin_lon,
+                destination_lat,
+                destination_lon,
+                days,
+                travelers_count,
+                budget_level,
+                destination_country,
+                origin_country
+            )
+        except ValueError as e:
+            flash(str(e), 'danger')
+            return render_template('edit_trip.html', trip=trip)
 
         # Update trip
         trip.title = title
@@ -1156,7 +1193,7 @@ def edit_trip(trip_id):
         trip.end_date = end_date
         trip.budget = budget['total_inr']
         trip.budget_level = budget_level
-        trip.travelers_count = travelers_count,
+        trip.travelers_count = travelers_count
         # ✅ ADD THESE NEW FIELDS:
         trip.hotel_usd = budget.get('hotel_usd', 0)
         trip.food_usd = budget.get('food_usd', 0)
@@ -1164,6 +1201,8 @@ def edit_trip(trip_id):
         trip.travel_cost_usd = budget.get('travel_cost_usd', 0)
         trip.distance_km = budget.get('distance_km', 0)
         trip.is_local = origin_country and destination_country and origin_country.lower() == destination_country.lower()
+        trip.latitude = destination_lat
+        trip.longitude = destination_lon
 
         db.session.commit()
 
@@ -1256,7 +1295,6 @@ def submit_feedback():
     return jsonify({'message': 'Feedback submitted successfully'})
 
 
-from flask_login import current_user  # Add this import at top if not already present
 
 @app.route('/api/feedback/<int:trip_id>', methods=['GET'])
 def get_feedback(trip_id):

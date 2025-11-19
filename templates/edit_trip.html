@@ -48,6 +48,9 @@
                                        required>
                             </div>
 
+                            <input type="hidden" id="origin_lat" name="origin_lat" value="{{ trip.origin_lat or '' }}">
+                            <input type="hidden" id="origin_lon" name="origin_lon" value="{{ trip.origin_lon or '' }}">
+
                             <div class="col-md-6 mb-3">
                                 <label for="destination" class="form-label">
                                     <i class="fas fa-map-marker-alt text-danger"></i>
@@ -60,6 +63,9 @@
                                        value="{{ trip.destination }}"
                                        required>
                             </div>
+
+                            <input type="hidden" id="destination_lat" name="destination_lat" value="{{ trip.destination_lat or '' }}">
+                            <input type="hidden" id="destination_lon" name="destination_lon" value="{{ trip.destination_lon or '' }}">
                         </div>
 
                         <!-- Dates Row -->
@@ -230,6 +236,12 @@ function calculateBudget() {
             document.getElementById('budget-loading').style.display = 'none';
 
             if (data.total_inr) {
+                // Assuming 'response' is the parsed JSON API response object
+                document.getElementById('origin_lat').value = data.origin_lat;
+                document.getElementById('origin_lon').value = data.origin_lon;
+                document.getElementById('destination_lat').value = data.destination_lat;
+                document.getElementById('destination_lon').value = data.destination_lon;
+
                 document.getElementById('budget-estimate').style.display = 'block';
                 document.getElementById('total-cost').textContent = data.total_inr.toLocaleString();
 
@@ -250,8 +262,8 @@ function calculateBudget() {
                     document.getElementById('origin-lon').value = data.origin_lon;
                 }
                 if (data.destination_lat && data.destination_lon) {
-                    document.getElementById('destination-lat').value = data.destination_lat;
-                    document.getElementById('destination-lon').value = data.destination_lon;
+                    document.getElementById('destination_lat').value = data.destination_lat;
+                    document.getElementById('destination_lon').value = data.destination_lon;
                 }
             }
         })
