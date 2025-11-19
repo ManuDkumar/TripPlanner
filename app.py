@@ -43,6 +43,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 # Global cache
 image_cache = {}
 
+
 # Models
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -374,6 +375,41 @@ def get_trending_places():
             'why_now': f'Popular destination with {weather["description"]} weather'
         })
     return jsonify(results)
+
+
+
+def get_unsplash_images_for_trip(destination):
+    cache_key = f"{destination}_multi"   # <--- important fix!
+
+    if cache_key in image_cache:
+        return image_cache[cache_key]
+
+    url = "https://api.unsplash.com/search/photos"
+    params = {
+        "query": f"{destination} travel city landscape",
+        "client_id": UNSPLASH_ACCESS_KEY,
+        "per_page": 5,
+        "orientation": "landscape"
+    }
+
+    try:
+        response = requests.get(url, params=params, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+
+        images = [f"{item['urls']['regular']}&w=600&q=70" for item in data.get("results", [])]
+
+        # If API returns 0 images, fallback with your placeholder
+        if not images:
+            images = [f"https://via.placeholder.com/1200x600?text={destination}"]
+
+        image_cache[cache_key] = images
+        return images
+
+    except Exception as e:
+        print("Unsplash error:", e)
+        return [f"https://via.placeholder.com/1200x600?text={destination}"]
+
 
 
 
@@ -994,17 +1030,34 @@ def calculate_breakdown(trip):
 @login_required
 def trip_details(trip_id):
     trip = Trip.query.get_or_404(trip_id)
-    
+
     if trip.user_id != current_user.id:
         return "Unauthorized", 403
-    
+
     destination_image = get_destination_image(trip.destination)
-    
-    # ✅ ADD THIS LINE:
     breakdown = calculate_breakdown(trip)
-    
-    # ✅ PASS breakdown to template:
-    return render_template("trip_details.html", trip=trip, destination_image=destination_image, breakdown=breakdown)
+
+    # ALWAYS get multi-images
+    images = get_unsplash_images_for_trip(trip.destination)
+
+    # Defensive: Ensure images is always a list
+    if isinstance(images, str):
+        images = [images]
+
+    return render_template(
+        "trip_details.html",
+        trip=trip,
+        destination_image=destination_image,
+        breakdown=breakdown,
+        images=images
+    )
+
+
+@app.route('/clear-cache')
+def clear_cache():
+    image_cache.clear()
+    return "Cache cleared"
+
 
 @app.route('/edit-trip/<int:trip_id>', methods=['GET', 'POST'])
 @login_required

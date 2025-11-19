@@ -20,6 +20,36 @@
             <h2>{{ trip.title }}</h2>
             <p class="text-muted">{{ trip.origin }} → {{ trip.destination }}</p>
 
+            {% if images %}
+            <div id="tripImageCarousel" class="carousel slide mb-4" data-bs-ride="carousel">
+                <div class="carousel-inner">
+                    {% for img_url in images %}
+                        <div class="carousel-item{% if loop.first %} active{% endif %}">
+                            <img src="{{ img_url }}" 
+                                class="d-block w-100" 
+                                style="max-height:400px; object-fit:cover;" 
+                                loading="lazy" 
+                                alt="Image of {{ trip.destination }}">
+                        </div>
+                    {% endfor %}
+                </div>
+                <button class="carousel-control-prev" type="button" data-bs-target="#tripImageCarousel" data-bs-slide="prev">
+                    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                    <span class="visually-hidden">Previous</span>
+                </button>
+                <button class="carousel-control-next" type="button" data-bs-target="#tripImageCarousel" data-bs-slide="next">
+                    <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                    <span class="visually-hidden">Next</span>
+                </button>
+
+                <!-- Unsplash Attribution -->
+                <div class="mt-2 text-center small text-muted">
+                    Images powered by <a href="https://unsplash.com" target="_blank" rel="noopener">Unsplash</a>
+                </div>
+            </div>
+            {% endif %}
+
+
             <!-- Destination Image -->
             {% if destination_image %}
             <div class="card mb-4">
@@ -241,7 +271,7 @@
 
             <!-- User Feedback Form -->
             <div class="card mb-4">
-                <div class="card-header bg-secondary text-white">
+                <div class="card-header bg-secondary  text-white">
                     <h5 class="mb-0">Give Your Feedback</h5>
                 </div>
                 <div class="card-body">
