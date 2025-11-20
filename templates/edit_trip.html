@@ -165,13 +165,7 @@
 
                         <!-- Hidden Budget Field -->
                         <input type="hidden" id="budget" name="budget" value="{{ trip.budget }}">
-                        <!-- Add these hidden fields in your form -->
-                        <input type="hidden" id="origin_lat" name="origin_lat" value="0">
-                        <input type="hidden" id="origin_lon" name="origin_lon" value="0">
-                        <input type="hidden" id="destination_lat" name="destination_lat" value="0">
-                        <input type="hidden" id="destination_lon" name="destination_lon" value="0">
-                        <input type="hidden" id="api-calculated-budget" name="api_budget" value="0">
-
+                        
 
                         <!-- Action Buttons -->
                         <div class="d-grid gap-2 mt-4">
@@ -224,12 +218,14 @@ function calculateBudget() {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                destination: destination,
+                origin: document.getElementById('origin-input').value,
+                destination: document.getElementById('destination-input').value,
                 start_date: startDate,
                 end_date: endDate,
                 travelers_count: travelers,
                 budget_level: budgetLevel
             })
+
         })
         .then(response => response.json())
         .then(data => {

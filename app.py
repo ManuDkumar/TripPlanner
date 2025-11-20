@@ -437,36 +437,17 @@ def safe_float(value):
 def calculate_trip_budget(origin_lat, origin_lon, destination_lat, destination_lon,
                          days, people, budget_level, destination_country,origin_country):
     
-    # DEBUG: Log all input parameters
-    print('=== CALCULATE_TRIP_BUDGET DEBUG ===')
-    print(f'INPUT PARAMETERS:')
-    print(f'  origin_lat: {origin_lat} (type: {type(origin_lat)})')
-    print(f'  origin_lon: {origin_lon} (type: {type(origin_lon)})')
-    print(f'  destination_lat: {destination_lat} (type: {type(destination_lat)})')
-    print(f'  destination_lon: {destination_lon} (type: {type(destination_lon)})')
-    print(f'  days: {days}')
-    print(f'  people: {people}')
-    print(f'  budget_level: {budget_level}')
-    print(f'  destination_country: {destination_country}')
-    
     # Calculate distance
     if is_valid_coord(origin_lat, origin_lon) and is_valid_coord(destination_lat, destination_lon):
         distance = haversine_distance(origin_lat, origin_lon, destination_lat, destination_lon)
-        print(f'Distance calculated: {distance} km')
     else:
         distance = 0
-        print('Warning: Invalid or missing coordinates; distance set to 0')
 
-    
     
     # Cost of living calculation
     raw_coli = cost_of_living_raw.get(destination_country.lower(), 50)
     coli_factor = normalize_coli(raw_coli)
-    print(f'\nCOST OF LIVING:')
-    print(f'  destination_country: {destination_country}')
-    print(f'  raw_coli value: {raw_coli}')
-    print(f'  coli_factor: {coli_factor}')
-
+    
     # Budget level multiplier
     is_local = False
     if origin_country and destination_country:
@@ -476,10 +457,6 @@ def calculate_trip_budget(origin_lat, origin_lon, destination_lat, destination_l
         
         # Check if same country
         is_local = (origin_country_normalized == destination_country_normalized)
-        print(f'\nLOCAL vs INTERNATIONAL:')
-        print(f'  origin_country (normalized): {origin_country_normalized}')
-        print(f'  destination_country (normalized): {destination_country_normalized}')
-        print(f'  is_local: {is_local}')
     else:
         print(f'\nLOCAL vs INTERNATIONAL:')
         print(f'  ⚠️  WARNING: origin_country or destination_country not provided')
@@ -502,41 +479,18 @@ def calculate_trip_budget(origin_lat, origin_lon, destination_lat, destination_l
         
 
     travel_cost_usd = (distance * per_km_inr) / USD_TO_INR
-    print(f'\nTRAVEL COST:')
-    print(f'  per_km_inr: {per_km_inr}')
-    print(f'  USD_TO_INR rate: {USD_TO_INR}')
-    print(f'  travel_cost_usd: {travel_cost_usd}')
-
     
     style_mul = {'low': 0.3, 'mid': 0.8, 'high': 1.6}.get(budget_level.lower(), 0.8)
-    print(f'\nBUDGET LEVEL:')
-    print(f'  is_local: {is_local}')
-    print(f'  base_hotel: {base_hotel}')
-    print(f'  base_food: {base_food}')
-    print(f'  base_transport: {base_transport}')
-    print(f'  budget_level: {budget_level}')
-    print(f'  style_mul: {style_mul}')
-
+   
     # Cost calculations
     hotel_cost = base_hotel * coli_factor * style_mul * days * people
     food_cost = base_food * coli_factor * style_mul * days * people
     transport_cost = base_transport * coli_factor * style_mul * days * people
 
-    print(f'\nCOST BREAKDOWN (USD):')
-    print(f'  hotel_cost: {base_hotel} * {coli_factor} * {style_mul} * {days} * {people} = {hotel_cost}')
-    print(f'  food_cost: {base_food} * {coli_factor} * {style_mul} * {days} * {people} = {food_cost}')
-    print(f'  transport_cost: {base_transport} * {coli_factor} * {style_mul} * {days} * {people} = {transport_cost}')
-    print(f'  travel_cost_usd: {travel_cost_usd}')
-
+   
     # Total calculation
     total_usd = hotel_cost + food_cost + transport_cost + travel_cost_usd
     total_inr = total_usd * USD_TO_INR
-
-    print(f'\nFINAL TOTALS:')
-    print(f'  total_usd: {total_usd}')
-    print(f'  total_inr: {total_inr}')
-    print(f'  total_inr (rounded): {round(total_inr, 2)}')
-    print('===================================\n')
 
     breakdown = {
         "hotel_usd": round(hotel_cost, 2),
@@ -738,15 +692,8 @@ def api_calculate_budget():
         destination_lat = destination_details.get('lat')
         destination_lon = destination_details.get('lon')
 
-        # ✅ NEW: Get both origin and destination country
         origin_country = get_country_from_destination(origin)
         destination_country = get_country_from_destination(destination)
-
-        print('=== API CALCULATE BUDGET ===')
-        print(f'Origin: {origin} → Country: {origin_country}')
-        print(f'Destination: {destination} → Country: {destination_country}')
-        print(f'Days: {days}, Travelers: {travelers_count}, Budget: {budget_level}')
-        print('=============================')
 
         budget_info = calculate_trip_budget(
             origin_lat, origin_lon, destination_lat, destination_lon,
@@ -829,18 +776,6 @@ def is_valid_place(place_details):
 @login_required
 def create_trip():
     if request.method == 'POST':
-
-        # DEBUG: Log all form data received
-        print('=== BACKEND FORM SUBMISSION ===')
-        print('Title:', request.form.get('title'))
-        print('Origin:', request.form.get('origin'))
-        print('Destination:', request.form.get('destination'))
-        print('Start Date:', request.form.get('start_date'))
-        print('End Date:', request.form.get('end_date'))
-        print('Travelers Count:', request.form.get('travelers_count'))
-        print('Budget Level:', request.form.get('budget_level'))
-        print('API Budget (if passed):', request.form.get('api_budget'))
-        print('==============================')
         origin = request.form.get('origin')
         destination = request.form.get('destination')
         title = request.form.get('title')
@@ -859,9 +794,7 @@ def create_trip():
 
         # Get place details with debug output
         origin_details = get_place_details(origin)
-        print("DEBUG: Origin details received:", origin_details)
         destination_details = get_place_details(destination)
-        print("DEBUG: Destination details received:", destination_details)
 
         # Validate place details
         if not is_valid_place(origin_details):
@@ -893,13 +826,6 @@ def create_trip():
 
         origin_country = get_country_from_destination(origin)
         destination_country = get_country_from_destination(destination)
-
-        print('=== CREATE TRIP DEBUG ===')
-        print(f'Origin: {origin} → Country: {origin_country}')
-        print(f'Destination: {destination} → Country: {destination_country}')
-        print(f'Days: {days}, Travelers: {travelers_count}')
-        print('=======================')
-
 
         try:
             budget = calculate_trip_budget(
@@ -1063,19 +989,6 @@ def edit_trip(trip_id):
     trip = Trip.query.get_or_404(trip_id)
     
     if request.method == 'POST':
-        # DEBUG: Log all form data received
-        print('=== BACKEND EDIT FORM SUBMISSION ===')
-        print('Trip ID:', trip_id)
-        print('Title:', request.form.get('title'))
-        print('Origin:', request.form.get('origin'))
-        print('Destination:', request.form.get('destination'))
-        print('Start Date:', request.form.get('start_date'))
-        print('End Date:', request.form.get('end_date'))
-        print('Travelers Count:', request.form.get('travelers_count'))
-        print('Budget Level:', request.form.get('budget_level'))
-        print('API Budget (if passed):', request.form.get('api_budget'))
-        print('==============================')
-        
         origin = request.form.get('origin')
         destination = request.form.get('destination')
         title = request.form.get('title')
@@ -1116,7 +1029,6 @@ def edit_trip(trip_id):
             flash('Invalid date format.', 'danger')
             return render_template('edit_trip.html', trip=trip)
 
-        # Extract coordinates from form (passed by frontend)
         origin_lat = safe_float(request.form.get('origin_lat')) or origin_details['lat']
         origin_lon = safe_float(request.form.get('origin_lon')) or origin_details['lon']
         destination_lat = safe_float(request.form.get('destination_lat')) or destination_details['lat']
@@ -1125,12 +1037,7 @@ def edit_trip(trip_id):
         origin_country = get_country_from_destination(origin)
         destination_country = get_country_from_destination(destination)
 
-        print('=== CREATE TRIP DEBUG ===')
-        print(f'Origin: {origin} → Country: {origin_country}')
-        print(f'Destination: {destination} → Country: {destination_country}')
-        print(f'Days: {days}, Travelers: {travelers_count}')
-        print('=======================')
-
+       
         try:
             budget = calculate_trip_budget(
                 origin_lat,
@@ -1147,7 +1054,6 @@ def edit_trip(trip_id):
             flash(str(e), 'danger')
             return render_template('edit_trip.html', trip=trip)
 
-        # Update trip
         trip.title = title
         trip.origin = origin
         trip.destination = destination
@@ -1156,7 +1062,6 @@ def edit_trip(trip_id):
         trip.budget = budget['total_inr']
         trip.budget_level = budget_level
         trip.travelers_count = travelers_count
-        # ✅ ADD THESE NEW FIELDS:
         trip.hotel_usd = budget.get('hotel_usd', 0)
         trip.food_usd = budget.get('food_usd', 0)
         trip.transport_usd = budget.get('transport_usd', 0)
