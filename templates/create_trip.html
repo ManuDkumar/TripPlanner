@@ -211,83 +211,103 @@
 </div>
 
 <script>
-// Set minimum date to today
 document.addEventListener('DOMContentLoaded', function() {
+    // Set minimum date to today
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('start_date').setAttribute('min', today);
     document.getElementById('end_date').setAttribute('min', today);
-});
 
-// Date validation
-document.getElementById('end_date').addEventListener('change', function() {
-    const startDate = new Date(document.getElementById('start_date').value);
-    const endDate = new Date(this.value);
-    const errorMsg = document.getElementById('date-error');
+    // Date validation
+    const endDateEl = document.getElementById('end_date');
+    const startDateEl = document.getElementById('start_date');
+    const dateError = document.getElementById('date-error');
     const submitBtn = document.getElementById('submitBtn');
-    
-    if (endDate <= startDate) {
-        errorMsg.style.display = 'block';
-        submitBtn.disabled = true;
-        this.classList.add('is-invalid');
-    } else {
-        errorMsg.style.display = 'none';
-        submitBtn.disabled = false;
-        this.classList.remove('is-invalid');
-        calculateBudget();
-    }
-});
 
-function calculateBudget() {
-    const destination = document.getElementById('destination-input').value;
-    const startDate = document.getElementById('start_date').value;
-    const endDate = document.getElementById('end_date').value;
-    const travelers = document.getElementById('travelers_count').value;
-    
-    if (destination && startDate && endDate && travelers) {
+    endDateEl.addEventListener('change', function() {
+        const startDate = new Date(startDateEl.value);
+        const endDate = new Date(this.value);
+
+        if (endDate <= startDate) {
+            dateError.style.display = 'block';
+            submitBtn.disabled = true;
+            this.classList.add('is-invalid');
+        } else {
+            dateError.style.display = 'none';
+            submitBtn.disabled = false;
+            this.classList.remove('is-invalid');
+            // call debounced calculate
+            calculateBudgetDebounced();
+        }
+    });
+
+    // Debounce helper (single implementation)
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func.apply(this, args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    // Main calculateBudget function
+    function calculateBudget() {
+        const origin = document.getElementById('origin-input').value;
+        const destination = document.getElementById('destination-input').value;
+        const startDate = startDateEl.value;
+        const endDate = endDateEl.value;
+        const travelers = document.getElementById('travelers_count').value;
+        const budgetLevel = document.getElementById('budget_level').value;
+
+        if (!destination || !startDate || !endDate || !travelers) return;
+
         // Show loading
         document.getElementById('budget-loading').style.display = 'block';
         document.getElementById('budget-estimate').style.display = 'none';
-        
+
         fetch('/api/calculate-budget', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
+                origin: origin || '',                 // <-- include origin now
                 destination: destination,
                 start_date: startDate,
                 end_date: endDate,
                 travelers_count: travelers,
-                budget_level: document.getElementById('budget_level').value
+                budget_level: budgetLevel
             })
         })
         .then(response => response.json())
         .then(data => {
-            // DEBUG: Log the request parameters
+            // DEBUG logs
             console.log('=== FRONTEND BUDGET CALCULATION ===');
-            console.log('Destination:', document.getElementById('destination-input').value);
-            console.log('Start Date:', document.getElementById('start_date').value);
-            console.log('End Date:', document.getElementById('end_date').value);
-            console.log('Travelers Count:', document.getElementById('travelers_count').value);
-            console.log('Budget Level:', document.getElementById('budget_level').value);
-            
-            // DEBUG: Log API response
-            console.log('API Response - Total INR:', data.total_inr);
-            console.log('API Response - Total USD:', data.total_usd);
-            console.log('Full API Response:', data);
+            console.log('Origin:', origin);
+            console.log('Destination:', destination);
+            console.log('Start Date:', startDate);
+            console.log('End Date:', endDate);
+            console.log('Travelers Count:', travelers);
+            console.log('Budget Level:', budgetLevel);
+            console.log('API Response:', data);
             console.log('================================');
-            
+
             document.getElementById('budget-loading').style.display = 'none';
 
-            if (data.total_inr) {
-                document.getElementById('origin_lat').value = data.origin_lat;
-                document.getElementById('origin_lon').value = data.origin_lon;
-                document.getElementById('destination_lat').value = data.destination_lat;
-                document.getElementById('destination_lon').value = data.destination_lon;
-                document.getElementById('budget-estimate').style.display = 'block';
-                document.getElementById('total-cost').textContent = data.total_inr.toLocaleString();
+            if (data && (data.total_inr || data.total_inr === 0)) {
+                // Put API coords into the *same* hidden ids your form uses
+                if (data.origin_lat !== undefined) document.getElementById('origin_lat').value = data.origin_lat;
+                if (data.origin_lon !== undefined) document.getElementById('origin_lon').value = data.origin_lon;
+                if (data.destination_lat !== undefined) document.getElementById('destination_lat').value = data.destination_lat;
+                if (data.destination_lon !== undefined) document.getElementById('destination_lon').value = data.destination_lon;
 
-                const startDate = new Date(document.getElementById('start_date').value);
-                const endDate = new Date(document.getElementById('end_date').value);
-                const duration = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+                document.getElementById('budget-estimate').style.display = 'block';
+                document.getElementById('total-cost').textContent = Number(data.total_inr).toLocaleString();
+
+                const sDate = new Date(startDate);
+                const eDate = new Date(endDate);
+                const duration = Math.ceil((eDate - sDate) / (1000 * 60 * 60 * 24));
                 const perDayCost = duration > 0 ? (data.total_inr / duration) : data.total_inr;
 
                 document.getElementById('per-day-cost').textContent = perDayCost.toFixed(2);
@@ -295,16 +315,6 @@ function calculateBudget() {
 
                 document.getElementById('budget').value = data.total_inr;
                 document.getElementById('api-calculated-budget').value = data.total_inr;
-
-                // Store lat/lon from API to hidden inputs
-                if (data.origin_lat && data.origin_lon) {
-                    document.getElementById('origin-lat').value = data.origin_lat;
-                    document.getElementById('origin-lon').value = data.origin_lon;
-                }
-                if (data.destination_lat && data.destination_lon) {
-                    document.getElementById('destination-lat').value = data.destination_lat;
-                    document.getElementById('destination-lon').value = data.destination_lon;
-                }
             }
         })
         .catch(error => {
@@ -312,122 +322,116 @@ function calculateBudget() {
             document.getElementById('budget-loading').style.display = 'none';
         });
     }
-}
 
-  // Debounce function to limit API calls while typing
-  function debounce(func, wait) {
-    let timeout;
-    return function(...args) {
-      const later = () => {
-        clearTimeout(timeout);
-        func(...args);
-      }
-      clearTimeout(timeout);
-      timeout = setTimeout(later, wait);
-    };
-  }
+    // create and use a debounced version
+    const calculateBudgetDebounced = debounce(calculateBudget, 300);
 
-  function setupAutocomplete(inputId) {
-    const input = document.getElementById(inputId);
-    const resultsList = document.createElement('ul');
-    resultsList.style.border = '1px solid #ccc';
-    resultsList.style.position = 'absolute';
-    resultsList.style.zIndex = '1000';
-    resultsList.style.background = '#fff';
-    resultsList.style.listStyleType = 'none';
-    resultsList.style.padding = '0';
-    resultsList.style.marginTop = '0';
-    resultsList.style.width = input.offsetWidth + 'px';
-    resultsList.style.maxHeight = '200px';
-    resultsList.style.overflowY = 'auto';
-    input.parentNode.appendChild(resultsList);
+    // AUTOCOMPLETE (sets hidden lat/lon now)
+    function setupAutocomplete(inputId, isOrigin = false) {
+        const input = document.getElementById(inputId);
 
-    input.addEventListener('input', debounce(function() {
-      const query = input.value;
-      if (query.length < 3) {
-        resultsList.innerHTML = '';
-        return;
-      }
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=${encodeURIComponent(query)}`)
-        .then(res => res.json())
-        .then(data => {
-          resultsList.innerHTML = '';
-          if (!data.length) {
-            const li = document.createElement('li');
-            li.textContent = 'No results found';
-            li.style.padding = '5px';
-            resultsList.appendChild(li);
-            return;
-          }
-          data.forEach(place => {
-            const li = document.createElement('li');
-            li.textContent = place.display_name;
-            li.style.padding = '5px';
-            li.style.cursor = 'pointer';
-            li.addEventListener('click', () => {
-              input.value = place.display_name;
-              resultsList.innerHTML = '';
-            });
-            resultsList.appendChild(li);
-          });
+        // container for results
+        const resultsList = document.createElement('ul');
+        resultsList.style.border = '1px solid #ccc';
+        resultsList.style.position = 'absolute';
+        resultsList.style.zIndex = '1000';
+        resultsList.style.background = '#fff';
+        resultsList.style.listStyleType = 'none';
+        resultsList.style.padding = '0';
+        resultsList.style.marginTop = '0';
+        resultsList.style.width = input.offsetWidth + 'px';
+        resultsList.style.maxHeight = '200px';
+        resultsList.style.overflowY = 'auto';
+        input.parentNode.style.position = 'relative'; // ensure absolute positions inside parent
+        input.parentNode.appendChild(resultsList);
+
+        input.addEventListener('input', debounce(function() {
+            const query = input.value;
+            if (query.length < 3) {
+                resultsList.innerHTML = '';
+                return;
+            }
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=${encodeURIComponent(query)}`)
+                .then(res => res.json())
+                .then(data => {
+                    resultsList.innerHTML = '';
+                    if (!data.length) {
+                        const li = document.createElement('li');
+                        li.textContent = 'No results found';
+                        li.style.padding = '8px';
+                        resultsList.appendChild(li);
+                        return;
+                    }
+                    data.forEach(place => {
+                        const li = document.createElement('li');
+                        li.textContent = place.display_name;
+                        li.style.padding = '8px';
+                        li.style.cursor = 'pointer';
+                        li.addEventListener('click', () => {
+                            input.value = place.display_name;
+                            resultsList.innerHTML = '';
+                            // set hidden lat/lon for the correct field names
+                            if (isOrigin) {
+                                document.getElementById('origin_lat').value = place.lat;
+                                document.getElementById('origin_lon').value = place.lon;
+                            } else {
+                                document.getElementById('destination_lat').value = place.lat;
+                                document.getElementById('destination_lon').value = place.lon;
+                            }
+                            // trigger a debounced budget recalculation
+                            calculateBudgetDebounced();
+                        });
+                        resultsList.appendChild(li);
+                    });
+                })
+                .catch(err => {
+                    console.error('Autocomplete error', err);
+                });
+        }, 300));
+
+        // Close list if clicked outside
+        document.addEventListener('click', (e) => {
+            if (!input.contains(e.target) && !resultsList.contains(e.target)) {
+                resultsList.innerHTML = '';
+            }
         });
-    }, 300));
-
-    // Close list if clicked outside
-    document.addEventListener('click', (e) => {
-      if (!input.contains(e.target) && !resultsList.contains(e.target)) {
-        resultsList.innerHTML = '';
-      }
-    });
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    setupAutocomplete('origin-input');
-    setupAutocomplete('destination-input');
-  });
-
-
-function debounce(func, wait) {
-  let timeout;
-  return function(...args) {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func.apply(this, args), wait);
-  };
-}
-const calculateBudgetDebounced = debounce(calculateBudget, 300);
-
-// Add event listeners
-document.getElementById('destination-input').addEventListener('input', calculateBudget);
-document.getElementById('start_date').addEventListener('change', function() {
-    const endDateInput = document.getElementById('end_date');
-    endDateInput.setAttribute('min', this.value);
-    calculateBudget();
-});
-document.getElementById('end_date').addEventListener('change', calculateBudget);
-document.getElementById('travelers_count').addEventListener('input', calculateBudget);
-document.getElementById('budget_level').addEventListener('change', calculateBudget);
-
-
-const destinationInput = document.getElementById('destination-input');
-const bestMonthText = document.getElementById('best-month-text');
-
-destinationInput.addEventListener('change', () => {
-    const destination = destinationInput.value;
-    if (destination) {
-        bestMonthText.textContent = 'Loading best month...';
-        fetch(`/get_best_month/${encodeURIComponent(destination)}`)
-            .then(res => res.json())
-            .then(data => {
-                bestMonthText.textContent = data.best_month;
-            })
-            .catch(() => {
-                bestMonthText.textContent = 'Failed to fetch best month.';
-            });
-    } else {
-        bestMonthText.textContent = 'Select destination to see best month to visit';
     }
-});
 
+    // Initialize autocompletes
+    setupAutocomplete('origin-input', true);
+    setupAutocomplete('destination-input', false);
+
+    // Hook up listeners (use debounced calculate)
+    document.getElementById('destination-input').addEventListener('input', calculateBudgetDebounced);
+    startDateEl.addEventListener('change', function() {
+        document.getElementById('end_date').setAttribute('min', this.value);
+        calculateBudgetDebounced();
+    });
+    endDateEl.addEventListener('change', calculateBudgetDebounced);
+    document.getElementById('travelers_count').addEventListener('input', calculateBudgetDebounced);
+    document.getElementById('budget_level').addEventListener('change', calculateBudgetDebounced);
+
+    // BEST MONTH
+    const destinationInput = document.getElementById('destination-input');
+    const bestMonthText = document.getElementById('best-month-text');
+
+    destinationInput.addEventListener('change', () => {
+        const destination = destinationInput.value;
+        if (destination) {
+            bestMonthText.textContent = 'Loading best month...';
+            fetch(`/get_best_month/${encodeURIComponent(destination)}`)
+                .then(res => res.json())
+                .then(data => {
+                    bestMonthText.textContent = data.best_month || 'Unavailable';
+                })
+                .catch(() => {
+                    bestMonthText.textContent = 'Failed to fetch best month.';
+                });
+        } else {
+            bestMonthText.textContent = 'Select destination to see best month to visit';
+        }
+    });
+});
 </script>
 
 <style>

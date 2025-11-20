@@ -12,72 +12,90 @@
 <script>
 document.addEventListener("DOMContentLoaded", function() {
   const urlParams = new URLSearchParams(window.location.search);
-  const query = urlParams.get('q') || '';
+  const rawQuery = urlParams.get('q') || '';
+  const query = rawQuery.trim();
 
-  if (query) {
-    fetch(`/api/search?q=${encodeURIComponent(query)}`)
-      .then(response => response.json())
-      .then(data => {
-        const resultsDiv = document.getElementById('results');
-        const noResultsDiv = document.getElementById('no-results');
-        resultsDiv.innerHTML = '';
-        if (data && data.length > 0) {
-          noResultsDiv.classList.add('d-none');
-          data.forEach(res => {
-            const col = document.createElement('div');
-            col.className = 'col';
+  const resultsDiv = document.getElementById('results');
+  const noResultsDiv = document.getElementById('no-results');
 
-            const card = document.createElement('div');
-            card.className = 'card h-100 shadow-sm';
-
-            const img = document.createElement('img');
-            img.src = res.image_url || 'https://via.placeholder.com/400x300?text=No+Image';
-            img.alt = res.name || 'Image';
-            img.className = 'card-img-top';
-            img.loading = 'lazy';
-
-            const cardBody = document.createElement('div');
-            cardBody.className = 'card-body';
-
-            const title = document.createElement('h5');
-            title.className = 'card-title';
-            title.textContent = res.name || '';
-
-            const desc = document.createElement('p');
-            desc.className = 'card-text';
-            desc.textContent = res.description || '';
-
-            cardBody.appendChild(title);
-            cardBody.appendChild(desc);
-
-            const cardFooter = document.createElement('div');
-            cardFooter.className = 'card-footer text-center';
-
-            const btn = document.createElement('a');
-            btn.className = 'btn btn-outline-primary btn-sm';
-            btn.href = `/create_trip?destination=${encodeURIComponent(res.name || '')}`;
-            btn.textContent = 'Plan Your Trip';
-
-            cardFooter.appendChild(btn);
-
-            card.appendChild(img);
-            card.appendChild(cardBody);
-            card.appendChild(cardFooter);
-
-            col.appendChild(card);
-            resultsDiv.appendChild(col);
-          });
-        } else {
-          noResultsDiv.classList.remove('d-none');
-        }
-      })
-      .catch(err => {
-        console.error('Error fetching search results:', err);
-      });
-  } else {
-    document.getElementById('no-results').textContent = 'Please enter a search query.';
-    document.getElementById('no-results').classList.remove('d-none');
+  if (!query) {
+    noResultsDiv.textContent = 'Please enter a search query.';
+    noResultsDiv.classList.remove('d-none');
+    return;
   }
+
+  // show a simple loading indicator
+  resultsDiv.innerHTML = '<div class="col-12 text-center my-4"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+
+  fetch(`/api/search?q=${encodeURIComponent(query)}`)
+    .then(response => {
+      if (!response.ok) throw new Error('Network response was not ok');
+      return response.json();
+    })
+    .then(data => {
+      resultsDiv.innerHTML = '';
+      noResultsDiv.classList.add('d-none');
+
+      if (!data || data.length === 0) {
+        noResultsDiv.classList.remove('d-none');
+        return;
+      }
+
+      data.forEach(res => {
+        const col = document.createElement('div');
+        col.className = 'col';
+
+        const card = document.createElement('div');
+        card.className = 'card h-100 shadow-sm';
+
+        const img = document.createElement('img');
+        // backend returns "image" key; fallback to placeholder if missing
+        img.src = res.image || res.image_url || 'https://via.placeholder.com/400x300?text=No+Image';
+        img.alt = res.name || 'Image';
+        img.className = 'card-img-top';
+        img.loading = 'lazy';
+
+        const cardBody = document.createElement('div');
+        cardBody.className = 'card-body';
+
+        const title = document.createElement('h5');
+        title.className = 'card-title';
+        title.textContent = res.name || '';
+
+        const desc = document.createElement('p');
+        desc.className = 'card-text';
+        // use available description fields in priority order
+        desc.textContent = res.why_now || res.weather_desc || res.description || '';
+
+        cardBody.appendChild(title);
+        cardBody.appendChild(desc);
+
+        const cardFooter = document.createElement('div');
+        cardFooter.className = 'card-footer text-center';
+
+        const btn = document.createElement('a');
+        btn.className = 'btn btn-outline-primary btn-sm';
+        // backend route is /create-trip (dash). Keep this.
+        btn.href = `/create-trip?destination=${encodeURIComponent(res.name || '')}`;
+        btn.textContent = 'Plan Your Trip';
+
+        cardFooter.appendChild(btn);
+
+        card.appendChild(img);
+        card.appendChild(cardBody);
+        card.appendChild(cardFooter);
+
+        col.appendChild(card);
+        resultsDiv.appendChild(col);
+      });
+    })
+    .catch(err => {
+      console.error('Error fetching search results:', err);
+      resultsDiv.innerHTML = '';
+      noResultsDiv.textContent = 'Error loading results. Please try again later.';
+      noResultsDiv.classList.remove('d-none');
+    });
 });
 </script>
+
 {% endblock %}

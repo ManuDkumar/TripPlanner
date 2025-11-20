@@ -1,16 +1,9 @@
 {% extends "base.html" %}
 
-<!-- stylelint-disable -->
-<!-- This file contains Jinja2 template syntax in style attributes which triggers false CSS errors -->
-<!-- The application works perfectly - these are validator false positives -->
-
 
 
 {% block title %}{{ trip.title }} - Trip Details{% endblock %}
 {% block content %}
-
-<!-- <p>Debug: trip id = {{ trip.id }}</p>
-<p>Debug: destination = {{ trip.destination }}</p> -->
 
 
 <div class="container mt-4">
@@ -24,20 +17,19 @@
             <div id="tripImageCarousel" class="carousel slide mb-4" data-bs-ride="carousel">
                 <div class="carousel-inner">
                     {% for img_url in images %}
-                        <div class="carousel-item{% if loop.first %} active{% endif %}">
-                            <img src="{{ img_url }}" 
-                                class="d-block w-100" 
-                                style="max-height:400px; object-fit:cover;" 
-                                loading="lazy" 
-                                alt="Image of {{ trip.destination }}">
-                        </div>
+                    <div class="carousel-item{% if loop.first %} active{% endif %}">
+                        <img src="{{ img_url }}" class="d-block w-100" style="max-height:400px; object-fit:cover;"
+                            loading="lazy" alt="Image of {{ trip.destination }}">
+                    </div>
                     {% endfor %}
                 </div>
-                <button class="carousel-control-prev" type="button" data-bs-target="#tripImageCarousel" data-bs-slide="prev">
+                <button class="carousel-control-prev" type="button" data-bs-target="#tripImageCarousel"
+                    data-bs-slide="prev">
                     <span class="carousel-control-prev-icon" aria-hidden="true"></span>
                     <span class="visually-hidden">Previous</span>
                 </button>
-                <button class="carousel-control-next" type="button" data-bs-target="#tripImageCarousel" data-bs-slide="next">
+                <button class="carousel-control-next" type="button" data-bs-target="#tripImageCarousel"
+                    data-bs-slide="next">
                     <span class="carousel-control-next-icon" aria-hidden="true"></span>
                     <span class="visually-hidden">Next</span>
                 </button>
@@ -53,7 +45,8 @@
             <!-- Destination Image -->
             {% if destination_image %}
             <div class="card mb-4">
-                <img src="{{ destination_image }}" class="card-img-top" alt="{{ trip.destination }}" style="max-height: 400px; object-fit: cover;">
+                <img src="{{ destination_image }}" class="card-img-top" alt="{{ trip.destination }}"
+                    style="max-height: 400px; object-fit: cover;">
                 <div class="card-body">
                     <h5 class="card-title">{{ trip.destination }}</h5>
                 </div>
@@ -78,8 +71,8 @@
                             <p><strong>💵 Cost per Day</strong><br>₹{{ trip.calculate_cost_per_day() }}</p>
                         </div>
                     </div>
-                    
-                    <!-- ✅ NEW: Trip Info Badges -->
+
+                    <!--Trip Info Badges -->
                     <div class="mt-3">
                         <span class="badge bg-primary">Budget Level: {{ trip.budget_level|upper }}</span>
                         <span class="badge bg-info">{{ breakdown.trip_type }} Trip</span>
@@ -91,334 +84,357 @@
                         <div class="card-header bg-info text-white">
                             <h5 class="mb-0" id="ai-title">AI-Generated Itinerary</h5>
                         </div>
-
-                        <div id="ai-content" class="card-body" 
-                        style="white-space: pre-wrap;
-                            max-height: 400px; 
-                            overflow-y: auto; 
-                            background-color: #f9f9f9; 
-                            border: 1px solid #ccc; 
-                            border-radius: 5px; 
-                            color: #333; 
-                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                            padding: 15px;">
-                            
-                            {{ trip.itinerary or '' }}
+                        <div id="ai-content" class="card-body"
+                            style="white-space: pre-wrap; max-height: 400px; overflow-y: auto; 
+                                background-color: #f9f9f9; border: 1px solid #ccc; border-radius: 5px; 
+                                color: #333; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px;">
+                            {{ trip.itinerary }}
                         </div>
-
+                    </div>
+                    {% else %}
+                    <div class="card mb-4">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0" id="ai-title">AI-Generated Itinerary</h5>
+                        </div>
+                        <div id="ai-content" class="card-body text-muted">
+                            No itinerary generated yet.
+                        </div>
                     </div>
                     {% endif %}
 
-
-                </div>
-            </div>
-
-            <!-- ✅ NEW: Detailed Budget Breakdown Table -->
-            <div class="card mb-4">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0">📊 Detailed Budget Breakdown</h5>
-                </div>
-                <div class="card-body">
-                    <table class="table table-sm table-hover">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Category</th>
-                                <th>Amount (INR)</th>
-                                <th>Percentage</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><strong>🏨 Accommodation</strong></td>
-                                <td><strong>₹{{ breakdown.hotel_inr }}</strong></td>
-                                <td><span class="badge bg-info">{{ breakdown.hotel_pct }}%</span></td>
-                            </tr>
-                            <tr>
-                                <td><strong>🍽️ Food & Dining</strong></td>
-                                <td><strong>₹{{ breakdown.food_inr }}</strong></td>
-                                <td><span class="badge bg-warning">{{ breakdown.food_pct }}%</span></td>
-                            </tr>
-                            <tr>
-                                <td><strong>🚗 Local Transport</strong></td>
-                                <td><strong>₹{{ breakdown.transport_inr }}</strong></td>
-                                <td><span class="badge bg-danger">{{ breakdown.transport_pct }}%</span></td>
-                            </tr>
-                            <tr>
-                                <td><strong>✈️ Travel (Flight/Train)</strong></td>
-                                <td><strong>₹{{ breakdown.travel_inr }}</strong></td>
-                                <td><span class="badge bg-success">{{ breakdown.travel_pct }}%</span></td>
-                            </tr>
-                            <tr style="border-top: 2px solid #000;">
-                                <td><strong>💰 Total</strong></td>
-                                <td><strong>₹{{ trip.budget }}</strong></td>
-                                <td><strong>100%</strong></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            
-
-
-            <!-- Budget Progress Bar - SIMPLEST & CLEANEST -->
-            <div class="card mb-4">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">💹 Budget Distribution</h5>
-                </div>
-                <div class="card-body">
-                    <div class="progress" style="height: 30px;">
-                        <div class="progress-bar bg-info" role="progressbar" 
-                            aria-valuenow="{{ breakdown.hotel_pct }}" aria-valuemin="0" aria-valuemax="100"
-                            style="width: {{ breakdown.hotel_pct|string }}%;">
-                            🏨 {{ breakdown.hotel_pct }}%
+                    {% if trip.travel_tips %}
+                    <div class="card mb-4">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0">AI-Generated Travel Tips</h5>
                         </div>
-                        <div class="progress-bar bg-warning" role="progressbar" 
-                            aria-valuenow="{{ breakdown.food_pct }}" aria-valuemin="0" aria-valuemax="100"
-                            style="width: {{ breakdown.food_pct|string }}%;">
-                            🍽️ {{ breakdown.food_pct }}%
+                        <div id="travel-tips-content" class="card-body"
+                            style="white-space: pre-wrap; max-height: 400px; overflow-y: auto; background-color: #fff8e1; border: 1px solid #ffecb3; border-radius: 5px; color: #5d4037; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px;">
+                            {{ trip.travel_tips }}
                         </div>
-                        <div class="progress-bar bg-danger" role="progressbar" 
-                            aria-valuenow="{{ breakdown.transport_pct }}" aria-valuemin="0" aria-valuemax="100"
-                            style="width: {{ breakdown.transport_pct|string }}%;">
-                            🚗 {{ breakdown.transport_pct }}%
+                    </div>
+                    {% else %}
+                    <div class="card mb-4">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0">AI-Generated Travel Tips</h5>
                         </div>
-                        <div class="progress-bar bg-success" role="progressbar" 
-                            aria-valuenow="{{ breakdown.travel_pct }}" aria-valuemin="0" aria-valuemax="100"
-                            style="width: {{ breakdown.travel_pct|string }}%;">
-                            ✈️ {{ breakdown.travel_pct }}%
+                        <div id="travel-tips-content" class="card-body text-muted" style="padding: 15px;">
+                            No travel tips generated yet.
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!--  Detailed Budget Breakdown Table -->
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">📊 Detailed Budget Breakdown</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Amount (INR)</th>
+                                    <th>Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>🏨 Accommodation</strong></td>
+                                    <td><strong>₹{{ breakdown.hotel_inr }}</strong></td>
+                                    <td><span class="badge bg-info">{{ breakdown.hotel_pct }}%</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>🍽️ Food & Dining</strong></td>
+                                    <td><strong>₹{{ breakdown.food_inr }}</strong></td>
+                                    <td><span class="badge bg-warning">{{ breakdown.food_pct }}%</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>🚗 Local Transport</strong></td>
+                                    <td><strong>₹{{ breakdown.transport_inr }}</strong></td>
+                                    <td><span class="badge bg-danger">{{ breakdown.transport_pct }}%</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>✈️ Travel (Flight/Train)</strong></td>
+                                    <td><strong>₹{{ breakdown.travel_inr }}</strong></td>
+                                    <td><span class="badge bg-success">{{ breakdown.travel_pct }}%</span></td>
+                                </tr>
+                                <tr style="border-top: 2px solid #000;">
+                                    <td><strong>💰 Total</strong></td>
+                                    <td><strong>₹{{ trip.budget }}</strong></td>
+                                    <td><strong>100%</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+
+
+
+                <!-- Budget Progress Bar - SIMPLEST & CLEANEST -->
+                <div class="card mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">💹 Budget Distribution</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="progress" style="height: 30px;">
+                            <div class="progress-bar bg-info" role="progressbar"
+                                aria-valuenow="{{ breakdown.hotel_pct }}" aria-valuemin="0" aria-valuemax="100"
+                                style="width: {{ breakdown.hotel_pct|string }}%;">
+                                🏨 {{ breakdown.hotel_pct }}%
+                            </div>
+                            <div class="progress-bar bg-warning" role="progressbar"
+                                aria-valuenow="{{ breakdown.food_pct }}" aria-valuemin="0" aria-valuemax="100"
+                                style="width: {{ breakdown.food_pct|string }}%;">
+                                🍽️ {{ breakdown.food_pct }}%
+                            </div>
+                            <div class="progress-bar bg-danger" role="progressbar"
+                                aria-valuenow="{{ breakdown.transport_pct }}" aria-valuemin="0" aria-valuemax="100"
+                                style="width: {{ breakdown.transport_pct|string }}%;">
+                                🚗 {{ breakdown.transport_pct }}%
+                            </div>
+                            <div class="progress-bar bg-success" role="progressbar"
+                                aria-valuenow="{{ breakdown.travel_pct }}" aria-valuemin="0" aria-valuemax="100"
+                                style="width: {{ breakdown.travel_pct|string }}%;">
+                                ✈️ {{ breakdown.travel_pct }}%
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Per Person Cost -->
-            <div class="card mb-4">
-                <div class="card-header bg-secondary text-white">
-                    <h5 class="mb-0">👥 Cost Per Person</h5>
-                </div>
-                <div class="card-body">
-                    <p><strong>💵 Cost per Person:</strong> ₹{{ (trip.budget / trip.travelers_count) | round(2) }}</p>
-                    <p><strong>📆 Daily per Person:</strong> ₹{{ (trip.calculate_cost_per_day() / trip.travelers_count) | round(2) }}</p>
-                </div>
-            </div>
-
-            
-            <!-- ✅ AI Features Card (WITH YOUR EXISTING SCRIPTS) -->
-            <div class="card mb-4">
-                <div class="card-header bg-warning text-dark">
-                    <h5 class="mb-0">🤖 Get personalized recommendations powered by AI</h5>
-                </div>
-                <div class="card-body">
-                    <button class="btn btn-warning me-2" onclick="generateItinerary()">
-                        <i class="fas fa-route"></i> Generate Itinerary
-                    </button>
-                    <button class="btn btn-warning" onclick="getTravelTips()">
-                        <i class="fas fa-lightbulb"></i> Get Travel Tips
-                    </button>
-                    
-                    <!-- Loading Indicator -->
-                    <div id="ai-loading" style="display: none; margin-top: 20px;">
-                        <div class="spinner-border text-warning" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <p class="mt-2">Generating recommendations...</p>
+                <!-- Per Person Cost -->
+                <div class="card mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">👥 Cost Per Person</h5>
                     </div>
-                    
-                    <!-- Results Display -->
-                    <div id="ai-results" style="display: none; margin-top: 20px;">
-                        <div class="alert alert-info">
-                            <h6>AI Recommendations:</h6>
-                            <p id="ai-content"></p>
+                    <div class="card-body">
+                        <p><strong>💵 Cost per Person:</strong> ₹{{ (trip.budget / trip.travelers_count) | round(2) }}
+                        </p>
+                        <p><strong>📆 Daily per Person:</strong> ₹{{ (trip.calculate_cost_per_day() /
+                            trip.travelers_count) | round(2) }}</p>
+                    </div>
+                </div>
+
+
+                <!-- ✅ AI Features Card -->
+                <div class="card mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">🤖 Get personalized recommendations powered by AI</h5>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-warning me-2" type="button" onclick="generateItinerary()">
+                            <i class="fas fa-route"></i> Generate Itinerary
+                        </button>
+                        <button type="button" class="btn btn-warning" onclick="getTravelTips()">
+                            <i class="fas fa-lightbulb"></i> Get Travel Tips
+                        </button>
+
+
+
+                        <!-- Loading Indicator -->
+                        <div id="ai-loading" style="display: none; margin-top: 20px;">
+                            <div class="spinner-border text-warning" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Generating recommendations...</p>
                         </div>
                     </div>
                 </div>
+
+
+
+                <!-- Action Buttons -->
+                <div class="mb-4">
+                    <a href="{{ url_for('edit_trip', trip_id=trip.id) }}" class="btn btn-primary">
+                        <i class="fas fa-edit"></i> Edit Trip
+                    </a>
+                    <form action="{{ url_for('delete_trip', trip_id=trip.id) }}" method="POST" style="display:inline;">
+                        <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure?')">
+                            <i class="fas fa-trash"></i> Delete Trip
+                        </button>
+                    </form>
+
+                    <a href="{{ url_for('view_trips') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Trips
+                    </a>
+                </div>
             </div>
 
-            
-
-            <!-- Action Buttons -->
-            <div class="mb-4">
-                <a href="{{ url_for('edit_trip', trip_id=trip.id) }}" class="btn btn-primary">
-                    <i class="fas fa-edit"></i> Edit Trip
-                </a>
-                <a href="{{ url_for('delete_trip', trip_id=trip.id) }}" class="btn btn-danger" onclick="return confirm('Are you sure?')">
-                    <i class="fas fa-trash"></i> Delete Trip
-                </a>
-                <a href="{{ url_for('view_trips') }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to Trips
-                </a>
-            </div>
         </div>
+        <!-- SIDEBAR -->
+        <div class="col-12 col-md-4 sidebar-fixed">
 
-        
-        <!-- Sidebar -->
-        <div class="col-md-4">
             <!-- Quick Info -->
-            <div class="card sticky-top" style="top: 20px;">
+            <div class="card sticky-top mb-4" style="top: 20px;">
                 <div class="card-header bg-dark text-white">
                     <h6 class="mb-0">Quick Info</h6>
                 </div>
                 <div class="card-body">
-                    <p class="mb-2"><small class="text-muted">Total Budget</small><br><strong class="fs-5">₹{{ trip.budget }}</strong></p>
-                    <p class="mb-2"><small class="text-muted">Per Day</small><br><strong>₹{{ trip.calculate_cost_per_day() }}</strong></p>
-                    <p class="mb-2"><small class="text-muted">Per Person</small><br><strong>₹{{ (trip.budget / trip.travelers_count) | round(2) }}</strong></p>
+                    <p class="mb-2"><small class="text-muted">Total Budget</small><br><strong class="fs-5">₹{{
+                            trip.budget }}</strong></p>
+                    <p class="mb-2"><small class="text-muted">Per Day</small><br><strong>₹{{
+                            trip.calculate_cost_per_day() }}</strong></p>
+                    <p class="mb-2"><small class="text-muted">Per Person</small><br><strong>₹{{ (trip.budget /
+                            trip.travelers_count) | round(2) }}</strong></p>
                     <hr>
-                    <p class="mb-0"><small class="text-muted">Trip Type</small><br><span class="badge bg-info">{{ breakdown.trip_type }}</span></p>
+                    <p class="mb-0"><small class="text-muted">Trip Type</small><br><span class="badge bg-info">{{
+                            breakdown.trip_type }}</span></p>
                 </div>
             </div>
 
-
-            <!-- User Feedback Form -->
+            <!-- Feedback Form -->
             <div class="card mb-4">
-                <div class="card-header bg-secondary  text-white">
+                <div class="card-header bg-secondary text-white">
                     <h5 class="mb-0">Give Your Feedback</h5>
                 </div>
                 <div class="card-body">
                     <label for="rating">Rating:</label>
-                    <select id="rating" class="form-select mb-2" aria-label="Rating">
-                    <option value="1">1 star</option>
-                    <option value="2">2 stars</option>
-                    <option value="3" selected>3 stars</option>
-                    <option value="4">4 stars</option>
-                    <option value="5">5 stars</option>
+                    <select id="rating" class="form-select mb-2">
+                        <option value="1">1 star</option>
+                        <option value="2">2 stars</option>
+                        <option value="3" selected>3 stars</option>
+                        <option value="4">4 stars</option>
+                        <option value="5">5 stars</option>
                     </select>
-                    
+
                     <label for="comment">Comment:</label>
-                    <textarea id="comment" class="form-control mb-2" rows="3" placeholder="Write your feedback..."></textarea>
-                    
+                    <textarea id="comment" class="form-control mb-2" rows="3"
+                        placeholder="Write your feedback..."></textarea>
+
                     <button class="btn btn-primary" onclick="submitFeedback('{{ trip.id }}')">Submit Feedback</button>
                 </div>
             </div>
 
-            <!-- Feedback Display Section -->
+            <!-- Feedback Display -->
             <div class="card mb-4">
                 <div class="card-header bg-secondary text-white">
                     <h5 class="mb-0">User Feedback & Ratings</h5>
                     <div id="average-rating" class="fs-4 mt-1"></div>
                 </div>
                 <div class="card-body" id="feedback-list">
-                    <!-- Feedback comments will be dynamically inserted here -->
                     <p>Loading feedback...</p>
                 </div>
             </div>
 
-        </div>     
+        </div>
     </div>
 </div>
 
-<!-- ✅ KEEP YOUR EXISTING SCRIPTS - FULLY PRESERVED -->
 <script>
 
-function getTravelTips() {
-    const destination = '{{ trip.destination | tojson }}';
-    const duration = '{{ trip.calculate_duration() }}';
-    const budget = '₹{{ trip.budget }}';
-    const travelers = '{{ trip.travelers_count }}';
-    
-    // Show loading
-    document.getElementById('ai-loading').style.display = 'block';
-    document.getElementById('ai-results').style.display = 'none';
-    
-    fetch(`/api/travel-tips/${destination}?duration=${duration}&budget=${budget}&travelers=${travelers}`)
-    .then(response => response.json())
-    .then(data => {
-        // Hide loading, show results
-        document.getElementById('ai-loading').style.display = 'none';
-        document.getElementById('ai-results').style.display = 'block';
+    async function generateItinerary() {
+        const destination = '{{ trip.destination | tojson }}';
+        const duration = '{{ trip.calculate_duration() }}';
+        const tripId = '{{ trip.id }}';
 
-        document.getElementById('ai-title').textContent = "Travel Tips";
+        const aiTitle = document.getElementById('ai-title');
+        const aiContent = document.getElementById('ai-content');
+        const loadingElem = document.getElementById('ai-loading');
 
-        document.getElementById('ai-content').textContent = data.tips;
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        document.getElementById('ai-loading').style.display = 'none';
-        alert('Failed to get travel tips. Please try again.');
-    });
-}
+        aiTitle.textContent = "Generating itinerary...";
+        aiContent.innerHTML = '';
+        loadingElem.style.display = 'block';  // Show loading spinner
 
-function generateItinerary() {
-    const destination = '{{ trip.destination | tojson }}';
-    const duration = '{{ trip.calculate_duration() | tojson }}';
-    const tripId = '{{ trip.id | tojson }}';
+        try {
+            const response = await fetch('/api/generate-itinerary', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ destination, duration, trip_id: tripId }),
+            });
 
-    document.getElementById('ai-loading').style.display = 'block';
-    document.getElementById('ai-results').style.display = 'none';
+            const data = await response.json();
 
-    fetch('/api/generate-itinerary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            destination: destination,
-            duration: duration,
-            interests: 'sightseeing, culture, food',
-            trip_id: tripId
+            if (data.itinerary) {
+                aiTitle.textContent = "AI-Generated Itinerary";
+                aiContent.textContent = data.itinerary;
+            } else if (data.error) {
+                aiTitle.textContent = "AI-Generated Itinerary";
+                aiContent.innerHTML = `<p class="text-danger">Error: ${data.error}</p>`;
+            } else {
+                aiTitle.textContent = "AI-Generated Itinerary";
+                aiContent.innerHTML = '<p class="text-warning">No itinerary generated.</p>';
+            }
+        } catch (error) {
+            aiTitle.textContent = "AI-Generated Itinerary";
+            aiContent.innerHTML = `<p class="text-danger">Request failed: ${error}</p>`;
+        } finally {
+            loadingElem.style.display = 'none';  // Hide loading spinner
+        }
+    }
+
+    function getTravelTips() {
+        const destination = '{{ trip.destination | tojson }}';
+        const duration = '{{ trip.calculate_duration() }}';
+        const budget = '{{ trip.budget | default(1000) }}';
+        const travelers = '{{ trip.travelers_count | default(1) }}';
+        const tripId = '{{ trip.id }}';
+
+        const tipsContent = document.getElementById('travel-tips-content');
+        tipsContent.innerHTML = '<p>Loading travel tips...</p>';
+
+        fetch('/api/generate-travel-tips', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ destination, duration, budget, travelers, trip_id: tripId }),
         })
-    })
-    .then(res => res.json())
-    .then(data => {
-        document.getElementById('ai-loading').style.display = 'none';
-        document.getElementById('ai-results').style.display = 'block';
+            .then(response => response.json())
+            .then(data => {
+                if (data.tips) {
+                    tipsContent.textContent = data.tips;
+                } else {
+                    tipsContent.innerHTML = `<p class="text-danger">${data.error || 'No travel tips available.'}</p>`;
+                }
+            })
+            .catch(error => {
+                tipsContent.innerHTML = `<p class="text-danger">Error fetching travel tips: ${error}</p>`;
+            });
+    }
 
-        document.getElementById('ai-title').textContent = "AI-Generated Itinerary";
+    async function submitFeedback(tripId) {
+        const rating = document.getElementById('rating').value;
+        const comment = document.getElementById('comment').value;
 
-        document.getElementById('ai-content').textContent = data.itinerary || "No itinerary generated.";
+        const response = await fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trip_id: tripId, rating: parseInt(rating), comment: comment })
+        });
 
-        setTimeout(() => location.reload(), 1500);
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to generate itinerary');
-        document.getElementById('ai-loading').style.display = 'none';
-    });
-}
-
-async function submitFeedback(tripId) {
-  const rating = document.getElementById('rating').value;
-  const comment = document.getElementById('comment').value;
-
-  const response = await fetch('/api/feedback', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ trip_id: tripId, rating: parseInt(rating), comment: comment })
-  });
-
-  const data = await response.json();
-  if (response.ok) {
-    alert('Thank you for your feedback!');
-    document.getElementById('comment').value = '';
-    // Optionally reload or update feedback section here
-  } else {
-    alert('Error: ' + data.error);
-  }
-}
+        const data = await response.json();
+        if (response.ok) {
+            alert('Thank you for your feedback!');
+            document.getElementById('comment').value = '';
+            // Optionally reload or update feedback section here
+        } else {
+            alert('Error: ' + data.error);
+        }
+    }
 
 
-async function loadFeedback(tripId) {
-  const response = await fetch(`/api/feedback/${tripId}`);
-  const data = await response.json();
+    async function loadFeedback(tripId) {
+        const response = await fetch(`/api/feedback/${tripId}`);
+        const data = await response.json();
 
-  const feedbackList = document.getElementById('feedback-list');
-  const averageRating = document.getElementById('average-rating');
+        const feedbackList = document.getElementById('feedback-list');
+        const averageRating = document.getElementById('average-rating');
 
-  if (!response.ok) {
-    feedbackList.innerHTML = `<p class="text-danger">Failed to load feedback.</p>`;
-    averageRating.textContent = '';
-    return;
-  }
+        if (!response.ok) {
+            feedbackList.innerHTML = `<p class="text-danger">Failed to load feedback.</p>`;
+            averageRating.textContent = '';
+            return;
+        }
 
-  if (!data.feedbacks.length) {
-    feedbackList.innerHTML = '<p>No feedback available yet.</p>';
-    averageRating.textContent = '';
-    return;
-  }
+        if (!data.feedbacks.length) {
+            feedbackList.innerHTML = '<p>No feedback available yet.</p>';
+            averageRating.textContent = '';
+            return;
+        }
 
-  // Display average rating
-  averageRating.textContent = `Average Rating: ${data.average_rating} ⭐`;
+        // Display average rating
+        averageRating.textContent = `Average Rating: ${data.average_rating} ⭐`;
 
-  // Build HTML for feedback comments including delete button for current user
-  feedbackList.innerHTML = data.feedbacks.map(f => `
+        feedbackList.innerHTML = data.feedbacks.map(f => `
     <div class="border-bottom mb-3 pb-2">
       <strong>${f.user}</strong> - <span>${f.rating} ⭐</span> <br/>
       <p>${f.comment || ''}</p>
@@ -426,30 +442,47 @@ async function loadFeedback(tripId) {
       ${f.is_current_user ? `<button class="btn btn-sm btn-danger ms-2" onclick="deleteFeedback(${f.id})">Delete</button>` : ''}
     </div>
   `).join('');
-}
+    }
 
-async function deleteFeedback(feedbackId) {
-  if (!confirm('Are you sure you want to delete this feedback?')) return;
+    async function deleteFeedback(feedbackId) {
+        if (!confirm('Are you sure you want to delete this feedback?')) return;
 
-  const response = await fetch(`/api/feedback/${feedbackId}`, {
-    method: 'DELETE',
-  });
+        const response = await fetch(`/api/feedback/${feedbackId}`, {
+            method: 'DELETE',
+        });
 
-  const data = await response.json();
-  if (response.ok) {
-    alert('Feedback deleted');
-    loadFeedback('{{ trip.id }}');  // Refresh feedback list
-  } else {
-    alert('Error: ' + data.error);
-  }
-}
+        const data = await response.json();
+        if (response.ok) {
+            alert('Feedback deleted');
+            loadFeedback('{{ trip.id }}');  // Refresh feedback list
+        } else {
+            alert('Error: ' + data.error);
+        }
+    }
 
-// Call loadFeedback on page load
-document.addEventListener('DOMContentLoaded', () => {
-  loadFeedback('{{ trip.id }}');
-});
+    // Call loadFeedback on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        loadFeedback('{{ trip.id }}');
+    });
 
 
 </script>
+<style>
+    /* Ensure the sidebar stays on the right and doesn't drop */
+    .sidebar-fixed {
+        position: sticky;
+        top: 20px;
+        height: fit-content;
+    }
+
+    /* Prevent bootstrap row stacking the sidebar below */
+    @media (max-width: 767px) {
+        .sidebar-fixed {
+            margin-top: 20px;
+            position: relative;
+            top: 0;
+        }
+    }
+</style>
 
 {% endblock %}

@@ -66,14 +66,15 @@ class Trip(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     user = db.relationship('User', backref=db.backref('trips', lazy=True))
 
-    # ✅ NEW FIELDS - ADD THESE:
-    hotel_usd = db.Column(db.Float, default=0)           # Hotel cost in USD
-    food_usd = db.Column(db.Float, default=0)            # Food cost in USD
-    transport_usd = db.Column(db.Float, default=0)       # Local transport in USD
-    travel_cost_usd = db.Column(db.Float, default=0)     # Flight/Train cost in USD
-    distance_km = db.Column(db.Float, default=0)         # Distance between origin-destination
-    is_local = db.Column(db.Boolean, default=False)      # Domestic (True) or International (False)
-    itinerary = db.Column(db.Text, nullable=True)  # To store AI-generated itinerary JSON or text
+    hotel_usd = db.Column(db.Float, default=0)           
+    food_usd = db.Column(db.Float, default=0)            
+    transport_usd = db.Column(db.Float, default=0)       
+    travel_cost_usd = db.Column(db.Float, default=0)   
+    distance_km = db.Column(db.Float, default=0)          
+    is_local = db.Column(db.Boolean, default=False)      
+    itinerary = db.Column(db.Text, nullable=True)  
+    travel_tips = db.Column(db.Text, nullable=True)   
+
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
 
@@ -109,33 +110,6 @@ class Feedback(db.Model):
     trip = db.relationship('Trip', backref=db.backref('feedbacks', lazy=True))
 
 
-
-
-def generate_trip_suggestions(preferences):
-    try:
-        model = genai.GenerativeModel('models/gemini-pro-latest')  # Updated model name
-        
-        prompt = f"""As a travel expert, suggest 5 amazing travel destinations based on these preferences:
-        
-Budget: ₹{preferences.get('budget', 'moderate')}
-Travel Style: {preferences.get('style', 'adventure')}
-Duration: {preferences.get('duration', '1 week')}
-Interests: {preferences.get('interests', 'culture, food, nature')}
-
-For each destination, provide:
-1. Destination name
-2. Why it's perfect for these preferences (2-3 sentences)
-3. Best time to visit
-4. Estimated daily budget in ₹
-
-Format as JSON array with keys: name, reason, best_time, daily_budget"""
-
-        response = model.generate_content(prompt)
-        return response.text
-        
-    except Exception as e:
-        print(f"Gemini API error: {e}")
-        return None
 
 
 def generate_itinerary(destination, duration, interests):
@@ -193,23 +167,6 @@ Keep it practical and specific."""
         print(f"Gemini API error: {e}")
         return None
 
-@app.route('/api/ai-suggestions', methods=['POST'])
-@login_required
-def get_ai_suggestions():
-    """Get AI-powered destination suggestions"""
-    data = request.get_json()
-    
-    suggestions = generate_trip_suggestions({
-        'budget': data.get('budget', 'moderate'),
-        'style': data.get('style', 'adventure'),
-        'duration': data.get('duration', '1 week'),
-        'interests': data.get('interests', 'culture, food')
-    })
-    
-    if suggestions:
-        return jsonify({'suggestions': suggestions})
-    else:
-        return jsonify({'error': 'Could not generate suggestions'}), 500
 
 
 
@@ -223,8 +180,7 @@ def get_ai_itinerary():
     destination = data.get('destination')
     duration = data.get('duration', 3)
     interests = data.get('interests', 'sightseeing, food')
-    trip_id = data.get('trip_id')  # Must be provided by frontend
-
+    trip_id = data.get('trip_id')  
     if not destination or not trip_id:
         logging.error("Missing required fields: destination or trip_id")
         return jsonify({'error': 'Missing required fields: destination or trip_id'}), 400
@@ -253,24 +209,39 @@ def get_ai_itinerary():
         logging.warning("Empty itinerary received from generate_itinerary function")
         return jsonify({'error': 'Could not generate itinerary'}), 500
 
-@app.route('/api/travel-tips/<destination>', methods=['GET'])
+@app.route('/api/generate-travel-tips', methods=['POST'])
 @login_required
-def get_travel_tips(destination):
-    """Get AI-powered travel tips"""
-    
-    # Get trip details from query params
-    trip_details = {
-        'duration': request.args.get('duration', 3),
-        'budget': request.args.get('budget', 1000),
-        'travelers': request.args.get('travelers', 1)
-    }
-    
-    tips = generate_travel_tips(destination, trip_details)
-    
-    if tips:
+def generate_and_save_travel_tips():
+    data = request.get_json()
+    destination = data.get('destination')
+    trip_id = data.get('trip_id')
+    duration = data.get('duration', 3)
+    budget = data.get('budget', 1000)
+    travelers = data.get('travelers', 1)
+
+    if not destination or not trip_id:
+        return jsonify({'error': 'Missing destination or trip_id'}), 400
+
+    trip_details = {'duration': duration, 'budget': budget, 'travelers': travelers}
+
+    try:
+        tips = generate_travel_tips(destination, trip_details)
+        if not tips:
+            raise ValueError("No tips generated")
+    except Exception as e:
+        return jsonify({'error': 'Failed to generate travel tips'}), 500
+
+    trip = Trip.query.get(trip_id)
+    if not trip or trip.user_id != current_user.id:
+        return jsonify({'error': 'Trip not found or unauthorized'}), 404
+
+    trip.travel_tips = tips
+
+    try:
+        db.session.commit()
         return jsonify({'tips': tips})
-    else:
-        return jsonify({'error': 'Could not generate tips'}), 500
+    except Exception as e:
+        return jsonify({'error': 'Failed to save travel tips'}), 500
 
 
 # Helper Functions
@@ -379,7 +350,7 @@ def get_trending_places():
 
 
 def get_unsplash_images_for_trip(destination):
-    cache_key = f"{destination}_multi"   # <--- important fix!
+    cache_key = f"{destination}_multi"  
 
     if cache_key in image_cache:
         return image_cache[cache_key]
@@ -426,7 +397,8 @@ USD_TO_INR = 83
 def normalize_coli(col_index):
     if col_index <= 0:
         return 1.0
-    return col_index / 50  # approximate normalization
+    return col_index / 50  
+
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     R = 6371  # Earth radius in kilometers
@@ -611,7 +583,6 @@ def get_country_from_destination(destination):
 
 
 
-# Routes
 @app.route('/')
 def home():
     is_authenticated = current_user.is_authenticated
@@ -679,7 +650,7 @@ def search_places():
         'limit': 5
     }
     headers = {
-        'User-Agent': 'TripPlannerPro/1.0 (manukumarhnml@gmail.com)'
+        'User-Agent': 'TripPlannerPro/1.0 (manukumarhnm@gmail.com)'
     }
     try:
         response = requests.get(nominatim_url, params=params, headers=headers, timeout=5)
@@ -782,7 +753,6 @@ def api_calculate_budget():
             days, travelers_count, budget_level, destination_country,origin_country
         )
 
-         # IMPORTANT: Add coordinates to the response
         budget_info['origin_lat'] = origin_details.get('lat')
         budget_info['origin_lon'] = origin_details.get('lon')
         budget_info['destination_lat'] = destination_details.get('lat')
@@ -921,9 +891,7 @@ def create_trip():
         destination_lon = safe_float(request.form.get('destination_lon')) or destination_details['lon']
 
 
-        # ✅ NEW: Get both countries using the function
         origin_country = get_country_from_destination(origin)
-        # Get destination country for cost of living lookup
         destination_country = get_country_from_destination(destination)
 
         print('=== CREATE TRIP DEBUG ===')
@@ -933,7 +901,6 @@ def create_trip():
         print('=======================')
 
 
-       # Pass coordinates to budget calculation
         try:
             budget = calculate_trip_budget(
                 origin_lat,
@@ -960,10 +927,8 @@ def create_trip():
             budget_level=budget_level,
             travelers_count=travelers_count,
             user_id=current_user.id,
-            # Coordinates stored here
             latitude=destination_lat,
             longitude=destination_lon,
-            # other existing fields...
             hotel_usd=budget.get('hotel_usd', 0),
             food_usd=budget.get('food_usd', 0),
             transport_usd=budget.get('transport_usd', 0),
@@ -986,7 +951,7 @@ def create_trip():
 @app.route('/get_best_month/<destination>')
 def get_best_month(destination):
     try:
-        model = genai.GenerativeModel('models/gemini-flash-latest')  # Replace with your chosen model
+        model = genai.GenerativeModel('models/gemini-flash-latest')  
         prompt = f"What is the best month to visit {destination}? Answer in 1 sentence only."
         response = model.generate_content(prompt)
         best_month = response.text if response else "Unavailable"
@@ -1157,9 +1122,7 @@ def edit_trip(trip_id):
         destination_lat = safe_float(request.form.get('destination_lat')) or destination_details['lat']
         destination_lon = safe_float(request.form.get('destination_lon')) or destination_details['lon']
 
-        # ✅ NEW: Get both countries
         origin_country = get_country_from_destination(origin)
-        # Get destination country
         destination_country = get_country_from_destination(destination)
 
         print('=== CREATE TRIP DEBUG ===')
@@ -1168,7 +1131,6 @@ def edit_trip(trip_id):
         print(f'Days: {days}, Travelers: {travelers_count}')
         print('=======================')
 
-        # Pass coordinates to budget calculation
         try:
             budget = calculate_trip_budget(
                 origin_lat,
@@ -1212,21 +1174,21 @@ def edit_trip(trip_id):
     # GET request - render edit form
     return render_template('edit_trip.html', trip=trip)
 
-# Delete trip route
 @app.route('/delete-trip/<int:trip_id>', methods=['POST'])
 @login_required
 def delete_trip(trip_id):
     trip = Trip.query.get_or_404(trip_id)
-    
+
     if trip.user_id != current_user.id:
         flash('Unauthorized action.', 'danger')
         return redirect(url_for('view_trips'))
-    
-    trip_title = trip.title
+
+    Feedback.query.filter_by(trip_id=trip.id).delete()
+
     db.session.delete(trip)
     db.session.commit()
-    
-    flash(f'Trip "{trip_title}" deleted successfully.', 'info')
+
+    flash(f'Trip \"{trip.title}\" deleted successfully.', 'info')
     return redirect(url_for('view_trips'))
 
 
@@ -1243,11 +1205,11 @@ def forgot_password():
         user.reset_token = token
         user.reset_token_expiration = datetime.utcnow() + timedelta(hours=1)
         db.session.commit()
-        reset_link = url_for('reset_password', token=token, _external=True)
+        reset_url = url_for('reset_password', token=token, _external=True)
         msg = Message('Password Reset Request',
                       sender=app.config['MAIL_DEFAULT_SENDER'],
                       recipients=[email])
-        msg.body = f"Click the link to reset your password: {reset_link}\n\nIf you didn't request it, please ignore this email."
+        msg.body = f"Click the link to reset your password: {reset_url}\n\nIf you didn't request it, please ignore this email."
         try:
             mail.send(msg)
             flash('A reset link has been sent to your email.', 'info')
@@ -1300,7 +1262,7 @@ def submit_feedback():
 def get_feedback(trip_id):
     feedbacks = Feedback.query.filter_by(trip_id=trip_id).order_by(Feedback.timestamp.desc()).all()
     results = [{
-        'id': f.id,  # Important to include feedback ID for deletion
+        'id': f.id,  
         'user': f"{f.user.username}",
         'rating': f.rating,
         'comment': f.comment,
@@ -1324,6 +1286,23 @@ def delete_feedback(feedback_id):
     db.session.delete(feedback)
     db.session.commit()
     return jsonify({'message': 'Feedback deleted successfully'})
+
+
+@app.route('/api/feedback-summary')
+@login_required
+def feedback_summary():
+    avg_rating = db.session.query(db.func.avg(Feedback.rating)).scalar()
+    avg_rating = round(avg_rating, 2) if avg_rating else None
+
+    feedbacks = Feedback.query.order_by(Feedback.timestamp.desc()).limit(10).all()
+    feedback_list = [{
+        'username': fb.user.username,
+        'comment': fb.comment,
+        'rating': fb.rating,
+        'timestamp': fb.timestamp.strftime('%Y-%m-%d %H:%M')
+    } for fb in feedbacks]
+
+    return jsonify(average=avg_rating, feedbacks=feedback_list)
 
 
 if __name__ == '__main__':

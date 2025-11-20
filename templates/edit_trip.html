@@ -166,10 +166,10 @@
                         <!-- Hidden Budget Field -->
                         <input type="hidden" id="budget" name="budget" value="{{ trip.budget }}">
                         <!-- Add these hidden fields in your form -->
-                        <input type="hidden" id="origin-lat" name="origin_lat" value="0">
-                        <input type="hidden" id="origin-lon" name="origin_lon" value="0">
-                        <input type="hidden" id="destination-lat" name="destination_lat" value="0">
-                        <input type="hidden" id="destination-lon" name="destination_lon" value="0">
+                        <input type="hidden" id="origin_lat" name="origin_lat" value="0">
+                        <input type="hidden" id="origin_lon" name="origin_lon" value="0">
+                        <input type="hidden" id="destination_lat" name="destination_lat" value="0">
+                        <input type="hidden" id="destination_lon" name="destination_lon" value="0">
                         <input type="hidden" id="api-calculated-budget" name="api_budget" value="0">
 
 
@@ -258,8 +258,8 @@ function calculateBudget() {
     
                 // Store coordinates from API
                 if (data.origin_lat && data.origin_lon) {
-                    document.getElementById('origin-lat').value = data.origin_lat;
-                    document.getElementById('origin-lon').value = data.origin_lon;
+                    document.getElementById('origin_lat').value = data.origin_lat;
+                    document.getElementById('origin_lon').value = data.origin_lon;
                 }
                 if (data.destination_lat && data.destination_lon) {
                     document.getElementById('destination_lat').value = data.destination_lat;
@@ -366,7 +366,7 @@ document.getElementById('start_date').addEventListener('change', function() {
 document.getElementById('end_date').addEventListener('change', calculateBudget);
 document.getElementById('travelers_count').addEventListener('input', calculateBudget);
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('budget_level').addEventListener('change', calculateBudget);
+document.getElementById('budget_level').addEventListener('change', calculateBudget);
 });
 
 </script>
